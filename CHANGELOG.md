@@ -4,14 +4,11 @@ All notable changes to **Cetus Image Converter & AI Alt Text** are documented in
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [1.0.1] – 2026-07-26
 
 ### Fixed
 
 - Minor fix.
-
-
 ## [1.0.0] – 2026-07-05
 
 ### Added
