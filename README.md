@@ -4,7 +4,6 @@
 
 Automated image optimization and smart SEO accessibility for WordPress. Convert your entire media library to AVIF or WebP, auto-generate Alt Text via Google Gemini or OpenAI, detect orphan files, and track savings — all from a single native admin panel.
 
----
 
 ## Features
 
@@ -20,7 +19,6 @@ Automated image optimization and smart SEO accessibility for WordPress. Convert 
 - **Per-image exclusion** — Skip individual images from both auto-convert and bulk batch via the attachment edit screen.
 - **Library statistics** — Total images, unconverted count, disk usage by format, cumulative savings.
 
----
 
 ## Requirements
 
@@ -34,7 +32,6 @@ Automated image optimization and smart SEO accessibility for WordPress. Convert 
 
 The built-in **Step 1 – Server Diagnosis** panel shows green/red indicators for every capability on your specific server.
 
----
 
 ## Installation
 
@@ -46,7 +43,6 @@ The built-in **Step 1 – Server Diagnosis** panel shows green/red indicators fo
    - **Step 2** — Choose output format and optionally add AI API keys.
    - **Step 3** — Click *Start Optimisation* to process the library.
 
----
 
 ## Privacy & Security
 
@@ -56,7 +52,6 @@ The built-in **Step 1 – Server Diagnosis** panel shows green/red indicators fo
 - AI requests go directly from your WordPress installation to Google or OpenAI — no data passes through third-party servers.
 - Telemetry is opt-in only and currently a stub — no data is sent.
 
----
 
 ## Development
 
@@ -73,19 +68,16 @@ composer fix
 
 A CI pipeline (GitHub Actions) runs PHPCS and PHP syntax checks on every push across PHP 8.0–8.3. See `.github/workflows/` for details.
 
----
 
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
----
 
 ## License
 
 GPL-2.0-or-later — see [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html).
 
----
 
 ## Support
 
@@ -93,6 +85,5 @@ GPL-2.0-or-later — see [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html).
 - **GitHub Issues:** https://github.com/skapacraft/cetus-media-optimizer/issues
 - **Email:** support@skapacraft.com
 
----
 
 Developed and maintained by [SkapaCraft](https://skapacraft.com)
