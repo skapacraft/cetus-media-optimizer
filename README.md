@@ -53,7 +53,7 @@ The built-in **Step 1 – Server Diagnosis** panel shows green/red indicators fo
 - All AJAX handlers require a valid WordPress nonce and `current_user_can('manage_options')`.
 - Original images are **never deleted** — conversion only adds companion files.
 - API keys are stored in the WordPress options table and are never exposed in front-end HTML or JavaScript.
-- AI requests go directly from your WordPress installation to Google or OpenAI — no data passes through Catalisi servers.
+- AI requests go directly from your WordPress installation to Google or OpenAI — no data passes through third-party servers.
 - Telemetry is opt-in only and currently a stub — no data is sent.
 
 ---
@@ -90,9 +90,9 @@ GPL-2.0-or-later — see [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html).
 ## Support
 
 - **WordPress.org forum:** https://wordpress.org/support/plugin/cetus-media-optimizer/
-- **GitHub Issues:** https://github.com/catalisidev/cetus-media-optimizer/issues
-- **Email:** support@catalisi.dev
+- **GitHub Issues:** https://github.com/skapacraft/cetus-media-optimizer/issues
+- **Email:** support@skapacraft.com
 
 ---
 
-Developed by [Catalisi](https://catalisi.dev)
+Developed and maintained by [SkapaCraft](https://skapacraft.com)

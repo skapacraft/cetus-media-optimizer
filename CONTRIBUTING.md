@@ -4,7 +4,7 @@ Thank you for your interest in contributing!
 
 ## Reporting bugs
 
-Open an issue on [GitHub](https://github.com/catalisidev/cetus-media-optimizer/issues) with:
+Open an issue on [GitHub](https://github.com/skapacraft/cetus-media-optimizer/issues) with:
 
 - WordPress version and PHP version
 - Active plugins and theme

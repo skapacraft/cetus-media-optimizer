@@ -1,12 +1,12 @@
 {
-  "name": "catalisi/cetus-media-optimizer",
+  "name": "skapacraft/cetus-media-optimizer",
   "description": "Advanced media optimizer for WordPress: AVIF/WebP conversion, AI Alt Text and orphan file management.",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "authors": [
     {
-      "name": "Catalisi",
-      "homepage": "https://github.com/catalisidev"
+      "name": "SkapaCraft",
+      "homepage": "https://github.com/skapacraft"
     }
   ],
   "require": {

@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name:       Cetus Image Converter & AI Alt Text
- * Plugin URI:        https://github.com/livqtech/cetus-media-optimizer
+ * Plugin URI:        https://github.com/skapacraft/cetus-media-optimizer
  * Description:       Advanced media optimizer: converts images to AVIF/WebP, auto-generates Alt Text via AI (Gemini / OpenAI), detects orphan files and manages your media library.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 6.2
  * Requires PHP:      8.0
  * Author:            LivQ
- * Author URI:        https://livq.it
+ * Author URI:        https://skapacraft.com
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       cetus-media-optimizer
@@ -36,7 +36,7 @@ if ( defined( 'CETUS_MO_VERSION' ) ) {
 /**
  * Costanti del plugin. Definite una sola volta grazie al check precedente.
  */
-define( 'CETUS_MO_VERSION', '1.0.0' );
+define( 'CETUS_MO_VERSION', '1.0.1' );
 define( 'CETUS_MO_FILE', __FILE__ );
 define( 'CETUS_MO_DIR', trailingslashit( plugin_dir_path( __FILE__ ) ) );
 define( 'CETUS_MO_URL', trailingslashit( plugin_dir_url( __FILE__ ) ) );

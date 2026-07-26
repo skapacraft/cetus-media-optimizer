@@ -99,7 +99,7 @@ No hard limit. The bulk processor works in small batches (5 images per AJAX tick
 
 = How does the AI Alt Text feature work? =
 
-After conversion, the plugin sends the image (as a Base64-encoded inline payload) to the selected AI provider. The response is sanitised and saved as the standard WordPress `_wp_attachment_image_alt` post meta. No image data is stored on any LivQ server.
+After conversion, the plugin sends the image (as a Base64-encoded inline payload) to the selected AI provider. The response is sanitised and saved as the standard WordPress `_wp_attachment_image_alt` post meta. No image data is stored on any server.
 
 = What happens if my AI quota is exceeded? =
 

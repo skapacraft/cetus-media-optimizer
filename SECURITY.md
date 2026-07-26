@@ -11,7 +11,7 @@
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
-Report security issues privately by email to **support@catalisi.dev** with the subject line:
+Report security issues privately by email to **support@skapacraft.com** with the subject line:
 
 ```
 [SECURITY] Cetus Image Converter & AI Alt Text – <brief description>

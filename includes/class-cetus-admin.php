@@ -285,11 +285,11 @@ class Cetus_MO_Admin {
 						<?php esc_html_e( 'Support', 'cetus-media-optimizer' ); ?>
 					</a>
 					<span style="color:#c3c4c7;margin:0 6px;">·</span>
-					<a href="https://github.com/livqtech/cetus-media-optimizer/issues" target="_blank" rel="noopener" style="text-decoration:none;color:#646970;" title="<?php esc_attr_e( 'GitHub Issues', 'cetus-media-optimizer' ); ?>">
+					<a href="https://github.com/skapacraft/cetus-media-optimizer/issues" target="_blank" rel="noopener" style="text-decoration:none;color:#646970;" title="<?php esc_attr_e( 'GitHub Issues', 'cetus-media-optimizer' ); ?>">
 						<?php esc_html_e( 'GitHub', 'cetus-media-optimizer' ); ?>
 					</a>
 					<span style="color:#c3c4c7;margin:0 6px;">·</span>
-					<a href="<?php echo esc_url( 'mailto:support@livq.it?subject=' . rawurlencode( 'Cetus Image Converter & AI Alt Text v' . CETUS_MO_VERSION . ' – Support – ' . ( wp_parse_url( home_url(), PHP_URL_HOST ) ?? '' ) ) ); ?>" style="text-decoration:none;color:#646970;" title="<?php esc_attr_e( 'Email support', 'cetus-media-optimizer' ); ?>">
+					<a href="<?php echo esc_url( 'mailto:support@skapacraft.com?subject=' . rawurlencode( 'Cetus Image Converter & AI Alt Text v' . CETUS_MO_VERSION . ' – Support – ' . ( wp_parse_url( home_url(), PHP_URL_HOST ) ?? '' ) ) ); ?>" style="text-decoration:none;color:#646970;" title="<?php esc_attr_e( 'Email support', 'cetus-media-optimizer' ); ?>">
 						<?php esc_html_e( 'Email', 'cetus-media-optimizer' ); ?>
 					</a>
 				</span>
@@ -1442,7 +1442,7 @@ class Cetus_MO_Admin {
 						<?php esc_html_e( 'Do you like Cetus Image Converter & AI Alt Text?', 'cetus-media-optimizer' ); ?>
 					</h3>
 					<p style="margin:0 0 14px;color:#50575e;font-size:13px;">
-						<?php esc_html_e( 'Cetus Image Converter & AI Alt Text is 100% free and open source. If it is optimizing your media library and improving your Core Web Vitals scores, support LivQ\'s development by leaving a 5-star review on WordPress.org.', 'cetus-media-optimizer' ); ?>
+						<?php esc_html_e( 'Cetus Image Converter & AI Alt Text is 100% free and open source. If it is optimizing your media library and improving your Core Web Vitals scores, support SkapaCraft\'s development by leaving a 5-star review on WordPress.org.', 'cetus-media-optimizer' ); ?>
 					</p>
 					<a href="<?php echo esc_url( $review_url ); ?>"
 						class="button button-primary"
