@@ -27,7 +27,7 @@ Open a GitHub issue with the `enhancement` label. Describe the use case, not jus
 
 ## Coding standards
 
-- WordPress PHP Coding Standards (enforced via PHPCS — see `phpcs.xml.dist`)
+- WordPress PHP Coding Standards (enforced via PHPCS: see `phpcs.xml.dist`)
 - PHP 8.0+ syntax
 - No direct database queries without `$wpdb->prepare()`
 - All user-facing strings must be wrapped in `__()` / `esc_html_e()` with the `cetus-media-optimizer` text domain
