@@ -6,35 +6,36 @@
  * Version:           1.0.1
  * Requires at least: 6.2
  * Requires PHP:      8.0
- * Author:            LivQ
+ * Author:            SkapaCraft
  * Author URI:        https://skapacraft.com
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       cetus-media-optimizer
- * Domain Path:       /languages
  *
  * @package CetusMediaOptimizer
  */
 
-// Blocca l'accesso diretto al file.
+// Block direct access to the file.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Carica l'autoloader di Composer (Sentry SDK e dipendenze).
+// The Composer autoloader, which is where the Sentry SDK comes from. It is
+// optional: without vendor/ the plugin runs, and the telemetry class simply
+// never finds a Sentry class to initialise.
 $cetus_mo_autoloader = __DIR__ . '/vendor/autoload.php';
 if ( file_exists( $cetus_mo_autoloader ) ) {
 	require_once $cetus_mo_autoloader;
 }
 unset( $cetus_mo_autoloader );
 
-// Impedisce il caricamento duplicato.
+// Guard against being loaded twice.
 if ( defined( 'CETUS_MO_VERSION' ) ) {
 	return;
 }
 
 /**
- * Costanti del plugin. Definite una sola volta grazie al check precedente.
+ * Plugin constants. Defined once, thanks to the guard above.
  */
 define( 'CETUS_MO_VERSION', '1.0.1' );
 define( 'CETUS_MO_FILE', __FILE__ );
@@ -44,10 +45,10 @@ define( 'CETUS_MO_INCLUDES', CETUS_MO_DIR . 'includes/' );
 define( 'CETUS_MO_SLUG', 'cetus-media-optimizer' );
 
 /**
- * Carica le classi del plugin con require_once sicuro.
+ * Loads the plugin classes through a guarded require_once.
  *
- * L'ordine è importante: Migrator prima di tutto perché può agire
- * sulle opzioni legacy prima che le altre classi le leggano.
+ * The order matters: Migrator comes first, because it rewrites the legacy
+ * options and has to do so before any other class reads them.
  *
  * @return void
  */
@@ -73,8 +74,8 @@ function cetus_mo_load_classes(): void {
 cetus_mo_load_classes();
 
 /**
- * Hook di attivazione: crea opzioni di default ed esegue la migrazione
- * dalla v1.x se necessario.
+ * Activation hook: creates the default options and, where needed, runs the
+ * migration from v1.x.
  *
  * @return void
  */
@@ -83,7 +84,8 @@ function cetus_mo_activate(): void {
 		return;
 	}
 
-	// Imposta i valori di default solo se non esistono già.
+	// Only set a default where nothing is stored yet: an upgrade must never
+	// overwrite a choice the site owner already made.
 	$defaults = [
 		'cetus_media_format'            => 'auto',
 		'cetus_media_auto_convert'      => '0',
@@ -107,28 +109,29 @@ function cetus_mo_activate(): void {
 		}
 	}
 
-	// Esegui la migrazione dal vecchio plugin se le classi sono disponibili.
+	// Migrate from the old plugin, when its class is available.
 	if ( class_exists( 'Cetus_MO_Migrator' ) ) {
 		$migrator = new Cetus_MO_Migrator();
 		$migrator->run();
 	}
 
-	// Aggiorna la versione salvata.
+	// Record the version we are now at.
 	update_option( 'cetus_media_version', CETUS_MO_VERSION );
 
-	// Aggiunge le regole MIME type nell'htaccess (AddType image/avif, image/webp).
+	// Add the MIME type rules to .htaccess (AddType image/avif, image/webp).
 	if ( class_exists( 'Cetus_MO_Admin' ) ) {
 		Cetus_MO_Admin::update_htaccess_mime_types();
 	}
 
-	// Flush delle rewrite rules per sicurezza.
+	// Flush the rewrite rules, to be safe.
 	flush_rewrite_rules();
 }
 register_activation_hook( CETUS_MO_FILE, 'cetus_mo_activate' );
 
 /**
- * Hook di disattivazione: pulisce le opzioni temporanee (transient) e
- * resetta i lock dei processi batch. Non elimina i dati utente.
+ * Deactivation hook: clears the transients and releases the batch locks.
+ * It deletes no user data; that only happens from uninstall.php, and only when
+ * the site owner asked for it.
  *
  * @return void
  */
@@ -141,7 +144,7 @@ function cetus_mo_deactivate(): void {
 	delete_option( 'cetus_mo_batch_progress' );
 	wp_clear_scheduled_hook( 'cetus_mo_cron_batch' );
 
-	// Rimuove le regole MIME dall'htaccess.
+	// Take the MIME rules back out of .htaccess.
 	$htaccess = get_home_path() . '.htaccess';
 	if ( function_exists( 'insert_with_markers' ) && file_exists( $htaccess ) && is_writable( $htaccess ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable
 		insert_with_markers( $htaccess, 'Cetus Image Converter & AI Alt Text', [] );
@@ -152,42 +155,42 @@ function cetus_mo_deactivate(): void {
 register_deactivation_hook( CETUS_MO_FILE, 'cetus_mo_deactivate' );
 
 /**
- * Punto di avvio principale del plugin.
- * Inizializza le classi solo nell'hook 'plugins_loaded' per garantire che
- * WordPress sia completamente caricato.
+ * The plugin's entry point.
+ * The classes are initialised on 'plugins_loaded' so that WordPress is fully
+ * loaded before any of them runs.
  *
  * @return void
  */
 function cetus_mo_init(): void {
-	// Inizializza Sentry (solo se opt-in attivo e SDK disponibile).
+	// Sentry, and only when the opt-in is on and the SDK is present.
 	if ( class_exists( 'Cetus_MO_Telemetry' ) ) {
 		Cetus_MO_Telemetry::init();
 	}
 
-	// Inizializza il pannello di amministrazione solo nel contesto admin.
+	// The admin panel, in the admin context only.
 	if ( is_admin() && class_exists( 'Cetus_MO_Admin' ) ) {
 		( new Cetus_MO_Admin() )->init();
 	}
 
-	// Inizializza l'ottimizzatore (per i nuovi upload automatici).
+	// The optimizer, which handles automatic conversion of new uploads.
 	if ( class_exists( 'Cetus_MO_Optimizer' ) ) {
 		( new Cetus_MO_Optimizer() )->init();
 	}
 
-	// Inizializza il processore batch per gli handler AJAX.
+	// The batch processor, for the AJAX handlers.
 	if ( class_exists( 'Cetus_MO_Bulk_Processor' ) ) {
 		( new Cetus_MO_Bulk_Processor() )->init();
 	}
 
-	// Aggiunge il link "Impostazioni" nella riga del plugin in plugins.php.
+	// The "Settings" link on the plugin's row in plugins.php.
 	if ( class_exists( 'Cetus_MO_Plugin_Links' ) ) {
 		( new Cetus_MO_Plugin_Links() )->init();
 	}
 }
 /**
- * Registra l'intervallo cron personalizzato "ogni 5 minuti".
+ * Registers the custom "every 5 minutes" cron interval.
  *
- * @param array<string, array{interval: int, display: string}> $schedules Schedule esistenti.
+ * @param array<string, array{interval: int, display: string}> $schedules Existing schedules.
  * @return array<string, array{interval: int, display: string}>
  */
 function cetus_mo_add_cron_schedule( array $schedules ): array {
@@ -203,7 +206,7 @@ add_filter( 'cron_schedules', 'cetus_mo_add_cron_schedule' ); // phpcs:ignore Wo
 
 add_action( 'plugins_loaded', 'cetus_mo_init' );
 
-// Registra il contenuto della privacy policy appena WP è pronto.
+// Register the privacy policy text as soon as WordPress is ready for it.
 add_action(
 	'admin_init',
 	function (): void {
@@ -214,8 +217,8 @@ add_action(
 );
 
 /**
- * Callback del WP-Cron per il batch in background.
- * Viene registrato globalmente perché WP-Cron non è legato al contesto admin.
+ * WP-Cron callback for the background batch.
+ * Registered globally, because WP-Cron is not tied to the admin context.
  *
  * @return void
  */

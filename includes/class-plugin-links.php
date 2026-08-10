@@ -1,6 +1,6 @@
 <?php
 /**
- * Aggiunge link rapidi nella riga del plugin nella pagina plugins.php.
+ * Adds quick links to the plugin's row on plugins.php.
  *
  * @package CetusMediaOptimizer
  */
@@ -21,7 +21,7 @@ if ( class_exists( 'Cetus_MO_Plugin_Links' ) ) {
 class Cetus_MO_Plugin_Links {
 
 	/**
-	 * Registra il filtro sui link di azione del plugin.
+	 * Registers the filter on the plugin action links.
 	 *
 	 * @return void
 	 */
@@ -33,9 +33,9 @@ class Cetus_MO_Plugin_Links {
 	}
 
 	/**
-	 * Aggiunge il link "Impostazioni" prima degli altri link di azione.
+	 * Puts the "Settings" link before the other action links.
 	 *
-	 * @param array<string, string> $links Link esistenti.
+	 * @param array<string, string> $links Existing links.
 	 * @return array<string, string>
 	 */
 	public function add_action_links( array $links ): array {

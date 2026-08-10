@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <ruleset name="Cetus Media Optimizer">
-  <description>PHPCS ruleset — WordPress Coding Standards for Cetus Media Optimizer.</description>
+  <description>PHPCS ruleset: WordPress Coding Standards for Cetus Image Converter and AI Alt Text.</description>
 
   <!-- Scope: only plugin source files -->
   <file>.</file>

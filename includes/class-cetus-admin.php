@@ -1,11 +1,13 @@
 <?php
 /**
- * Pannello di controllo amministrativo per Cetus Image Converter & AI Alt Text.
+ * The admin panel for Cetus Image Converter & AI Alt Text.
  *
- * Utilizza tab nativi WordPress (nav-tab-wrapper) con URL separati per ciascuna sezione:
- *   ?tab=diagnosi   — Diagnosi Server
- *   ?tab=preferenze — Preferenze
- *   ?tab=libreria   — Gestione Libreria
+ * Uses the native WordPress tabs (nav-tab-wrapper), with a separate URL per
+ * section. The query values stay in Italian for compatibility: they are what
+ * existing bookmarks and links point at.
+ *   ?tab=diagnosi   server diagnosis
+ *   ?tab=preferenze preferences
+ *   ?tab=libreria   library management
  *
  * @package CetusMediaOptimizer
  */
@@ -24,14 +26,14 @@ if ( class_exists( 'Cetus_MO_Admin' ) ) {
 class Cetus_MO_Admin {
 
 	/**
-	 * Slug della pagina di impostazioni.
+	 * Slug of the settings page.
 	 *
 	 * @var string
 	 */
 	private const PAGE_SLUG = 'cetus-media-optimizer';
 
 	/**
-	 * Nome del gruppo di opzioni per register_setting().
+	 * Option group name, for register_setting().
 	 *
 	 * @var string
 	 */
@@ -42,7 +44,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Registra tutti gli hook necessari per il pannello admin.
+	 * Registers every hook the admin panel needs.
 	 *
 	 * @return void
 	 */
@@ -62,7 +64,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Aggiunge la voce di menu nel pannello di amministrazione.
+	 * Adds the entry to the admin menu.
 	 *
 	 * @return void
 	 */
@@ -83,7 +85,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Registra le opzioni tramite l'API Settings di WordPress.
+	 * Registers the options through the WordPress Settings API.
 	 *
 	 * @return void
 	 */
@@ -110,7 +112,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Sanitizza un valore checkbox: accetta solo '0' o '1'.
+	 * Sanitises a checkbox value: '0' or '1' only.
 	 *
 	 * @param mixed $value Valore grezzo.
 	 * @return string '1' | '0'
@@ -120,7 +122,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Sanitizza una chiave API rimuovendo spazi e caratteri non ASCII.
+	 * Sanitises an API key by stripping whitespace and non-ASCII characters.
 	 *
 	 * @param mixed $value Valore grezzo.
 	 * @return string
@@ -130,7 +132,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Sanitizza il valore di qualità immagine: intero tra 1 e 100.
+	 * Sanitises an image quality value: an integer from 1 to 100.
 	 *
 	 * @param mixed $value Valore grezzo.
 	 * @return int
@@ -140,7 +142,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Sanitizza il formato di output: accetta solo i valori consentiti.
+	 * Sanitises the output format: only the allowed values get through.
 	 *
 	 * @param mixed $value Valore grezzo.
 	 * @return string
@@ -152,7 +154,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Sanitizza il provider AI: accetta solo i valori consentiti.
+	 * Sanitises the AI provider: only the allowed values get through.
 	 *
 	 * @param mixed $value Valore grezzo.
 	 * @return string
@@ -164,7 +166,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Sanitizza il codice lingua per l'alt text: stringa vuota o tag BCP-47 valido.
+	 * Sanitises the alt text language code: either empty or a valid BCP-47 tag.
 	 *
 	 * @param mixed $value Valore grezzo.
 	 * @return string
@@ -183,9 +185,9 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Carica CSS e JavaScript inline solo nella pagina del plugin.
+	 * Loads the inline CSS and JavaScript, on the plugin's own page only.
 	 *
-	 * @param string $hook Slug della pagina admin corrente.
+	 * @param string $hook Slug of the current admin page.
 	 * @return void
 	 */
 	public function enqueue_assets( string $hook ): void {
@@ -193,10 +195,10 @@ class Cetus_MO_Admin {
 			return;
 		}
 
-		// Enqueue lo script jQuery (già incluso in WordPress).
+		// jQuery, which WordPress ships already.
 		wp_enqueue_script( 'jquery' );
 
-		// Localizza le variabili JS necessarie.
+		// The JS variables the panel needs.
 		wp_add_inline_script(
 			'jquery',
 			'window.CetusMO = ' . wp_json_encode(
@@ -233,7 +235,7 @@ class Cetus_MO_Admin {
 						'no_conversions'     => __( 'No conversions recorded yet.', 'cetus-media-optimizer' ),
 						'estimating'         => __( 'Estimating time…', 'cetus-media-optimizer' ),
 						'no_orphans'         => __( 'No orphan files found.', 'cetus-media-optimizer' ),
-						'orphan_already_opt' => __( 'All orphan files are already in the target format — nothing to convert.', 'cetus-media-optimizer' ),
+						'orphan_already_opt' => __( 'All orphan files are already in the target format: nothing to convert.', 'cetus-media-optimizer' ),
 						'orphan_stopped'     => __( 'Orphan optimization stopped.', 'cetus-media-optimizer' ),
 						'scan_orphans_btn'   => __( 'Scan Orphan Files', 'cetus-media-optimizer' ),
 					],
@@ -241,12 +243,12 @@ class Cetus_MO_Admin {
 			) . ';'
 		);
 
-		// CSS inline per il pannello.
+		// The panel's inline CSS.
 		wp_register_style( 'cetus-mo-admin', false ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
 		wp_enqueue_style( 'cetus-mo-admin' );
 		wp_add_inline_style( 'cetus-mo-admin', $this->get_inline_css() );
 
-		// JS inline per la logica del pannello.
+		// The panel's inline JS.
 		wp_register_script( 'cetus-mo-admin', false, [ 'jquery' ], CETUS_MO_VERSION, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.NoExplicitVersion
 		wp_enqueue_script( 'cetus-mo-admin' );
 		wp_add_inline_script( 'cetus-mo-admin', $this->get_inline_js() );
@@ -257,7 +259,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Esegue il rendering dell'intera pagina di impostazioni.
+	 * Renders the whole settings page.
 	 *
 	 * @return void
 	 */
@@ -340,9 +342,9 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Render del pannello di diagnosi server.
+	 * Renders the server diagnosis panel.
 	 *
-	 * @param Cetus_MO_Optimizer $optimizer Istanza ottimizzatore per i check.
+	 * @param Cetus_MO_Optimizer $optimizer The optimizer instance used for the checks.
 	 * @return void
 	 */
 	private function render_step1( Cetus_MO_Optimizer $optimizer ): void {
@@ -354,12 +356,12 @@ class Cetus_MO_Admin {
 			<?php if ( $all_ok ) : ?>
 			<div class="notice notice-success inline">
 				<p><span class="dashicons dashicons-yes-alt" style="vertical-align:middle;margin-right:6px;"></span>
-				<strong><?php esc_html_e( 'Server correctly configured', 'cetus-media-optimizer' ); ?></strong> — <?php esc_html_e( 'all required libraries are available.', 'cetus-media-optimizer' ); ?></p>
+				<strong><?php esc_html_e( 'Server correctly configured', 'cetus-media-optimizer' ); ?></strong>: <?php esc_html_e( 'all required libraries are available.', 'cetus-media-optimizer' ); ?></p>
 			</div>
 			<?php else : ?>
 			<div class="notice notice-warning inline">
 				<p><span class="dashicons dashicons-warning" style="vertical-align:middle;margin-right:6px;"></span>
-				<strong><?php esc_html_e( 'Partial configuration', 'cetus-media-optimizer' ); ?></strong> — <?php esc_html_e( 'some features may not be available.', 'cetus-media-optimizer' ); ?></p>
+				<strong><?php esc_html_e( 'Partial configuration', 'cetus-media-optimizer' ); ?></strong>: <?php esc_html_e( 'some features may not be available.', 'cetus-media-optimizer' ); ?></p>
 			</div>
 			<?php endif; ?>
 
@@ -400,9 +402,9 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Esegue i check diagnostici del server e restituisce i risultati.
+	 * Runs the server diagnostic checks and returns the results.
 	 *
-	 * @param Cetus_MO_Optimizer $optimizer Istanza da usare per i check.
+	 * @param Cetus_MO_Optimizer $optimizer The instance to run the checks against.
 	 * @return array<array{label: string, ok: bool, status: string, note: string}>
 	 */
 	private function run_server_diagnostics( Cetus_MO_Optimizer $optimizer ): array {
@@ -476,7 +478,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Render del pannello delle preferenze.
+	 * Renders the preferences panel.
 	 *
 	 * @return void
 	 */
@@ -693,7 +695,7 @@ class Cetus_MO_Admin {
 						rows="3" class="large-text"
 						placeholder="<?php esc_attr_e( 'Leave empty to use the default prompt.', 'cetus-media-optimizer' ); ?>"
 					><?php echo esc_textarea( get_option( 'cetus_media_alt_text_prompt', '' ) ); ?></textarea>
-					<p class="description"><?php esc_html_e( 'Optional — overrides the language and default prompt. Example: "Describe this image in English in one sentence."', 'cetus-media-optimizer' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Optional: overrides the language and default prompt. Example: "Describe this image in English in one sentence."', 'cetus-media-optimizer' ); ?></p>
 				</td>
 			</tr>
 			<tr>
@@ -726,9 +728,9 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Render del pannello di gestione della libreria.
+	 * Renders the library management panel.
 	 *
-	 * @param Cetus_MO_Optimizer $optimizer Istanza ottimizzatore per le statistiche.
+	 * @param Cetus_MO_Optimizer $optimizer The optimizer instance, for the statistics.
 	 * @return void
 	 */
 	private function render_step3( Cetus_MO_Optimizer $optimizer ): void {
@@ -747,7 +749,7 @@ class Cetus_MO_Admin {
 		);
 		$total_images       = count( $total_images_query->posts );
 
-		// Immagini non ancora convertite nel formato di output corrente.
+		// Images not yet converted into the current output format.
 		$format        = get_option( 'cetus_media_format', 'auto' );
 		$not_converted = 0;
 		if ( 'none' !== $format ) {
@@ -1040,7 +1042,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Render della sezione telemetria (Opt-in, disabilitata di default).
+	 * Renders the telemetry section. Opt-in, and off by default.
 	 *
 	 * @return void
 	 */
@@ -1074,7 +1076,7 @@ class Cetus_MO_Admin {
 					<p class="description" style="margin-top:6px;">
 						<?php if ( '1' === $opt_in ) : ?>
 							<span style="color:#46b450;">&#9679;</span>
-							<?php esc_html_e( 'Active — reports sent to Sentry.', 'cetus-media-optimizer' ); ?>
+							<?php esc_html_e( 'Active: reports sent to Sentry.', 'cetus-media-optimizer' ); ?>
 						<?php else : ?>
 							<span style="color:#dc3232;">&#9679;</span>
 							<?php esc_html_e( 'Disabled.', 'cetus-media-optimizer' ); ?>
@@ -1088,7 +1090,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Render della sezione uninstall cleanup (Opt-in, disabilitata di default).
+	 * Renders the uninstall cleanup section. Opt-in, and off by default.
 	 *
 	 * @return void
 	 */
@@ -1118,7 +1120,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Salva le impostazioni tramite AJAX (chiamata dalla form con JS).
+	 * Saves the settings over AJAX, called from the form by JS.
 	 *
 	 * @return void
 	 */
@@ -1132,13 +1134,13 @@ class Cetus_MO_Admin {
 			wp_send_json_error( [ 'message' => __( 'Invalid nonce.', 'cetus-media-optimizer' ) ], 403 );
 		}
 
-		// Aggiorna ogni opzione con sanitizzazione dedicata.
+		// Each option goes through its own sanitiser.
 		$format = isset( $_POST['cetus_media_format'] )
 			? sanitize_text_field( wp_unslash( $_POST['cetus_media_format'] ) )
 			: 'auto';
 		update_option( 'cetus_media_format', in_array( $format, [ 'auto', 'avif', 'webp', 'none' ], true ) ? $format : 'auto' );
 
-		// Invalida il probe AVIF cachato al cambio di preferenze.
+		// Drop the cached AVIF probe whenever the preferences change.
 		delete_transient( 'cetus_mo_avif_probe' );
 
 		update_option( 'cetus_media_auto_convert', isset( $_POST['cetus_media_auto_convert'] ) ? '1' : '0' );
@@ -1152,7 +1154,7 @@ class Cetus_MO_Admin {
 		update_option( 'cetus_media_cron_enabled', isset( $_POST['cetus_media_cron_enabled'] ) ? '1' : '0' );
 		update_option( 'cetus_media_telemetry_opt_in', isset( $_POST['cetus_media_telemetry_opt_in'] ) ? '1' : '0' );
 
-		// Qualità (1-100).
+		// Quality, 1 to 100.
 		if ( isset( $_POST['cetus_media_webp_quality'] ) ) {
 			update_option( 'cetus_media_webp_quality', (string) max( 1, min( 100, absint( wp_unslash( $_POST['cetus_media_webp_quality'] ) ) ) ) );
 		}
@@ -1168,7 +1170,8 @@ class Cetus_MO_Admin {
 			update_option( 'cetus_media_alt_text_prompt', sanitize_textarea_field( wp_unslash( $_POST['cetus_media_alt_text_prompt'] ) ) );
 		}
 
-		// Chiavi API: salva solo se non vuote (evita di sovrascrivere con stringa vuota).
+		// API keys are saved only when non-empty, so that submitting the form
+		// without retyping a key does not wipe the stored one.
 		if ( isset( $_POST['cetus_media_gemini_key'] ) ) {
 			$key = sanitize_text_field( wp_unslash( $_POST['cetus_media_gemini_key'] ) );
 			if ( '' !== $key && str_repeat( '•', 16 ) !== $key ) {
@@ -1189,8 +1192,9 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Aggiunge (o rimuove) le regole AddType per AVIF/WebP nell'htaccess di WordPress.
-	 * Usa insert_with_markers per essere idempotente e reversibile.
+	 * Adds, or removes, the AddType rules for AVIF and WebP in the WordPress
+	 * .htaccess. It goes through insert_with_markers, so it is idempotent and
+	 * reversible.
 	 *
 	 * @return void
 	 */
@@ -1203,7 +1207,7 @@ class Cetus_MO_Admin {
 		$format = get_option( 'cetus_media_format', 'auto' );
 
 		if ( 'none' === $format ) {
-			// Nessuna conversione attiva — rimuovi le regole.
+			// No conversion active: drop the rules.
 			insert_with_markers( $htaccess, 'Cetus Image Converter & AI Alt Text', [] );
 			return;
 		}
@@ -1219,7 +1223,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Valida il formato di una chiave API tramite AJAX.
+	 * Validates the shape of an API key over AJAX.
 	 *
 	 * @return void
 	 */
@@ -1251,11 +1255,11 @@ class Cetus_MO_Admin {
 	}
 
 	// -------------------------------------------------------------------------
-	// Meta box esclusione allegato
+	// Attachment exclusion meta box
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Registra il meta box nella schermata di modifica allegato.
+	 * Registers the meta box on the attachment edit screen.
 	 *
 	 * @return void
 	 */
@@ -1271,9 +1275,9 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Render del meta box di esclusione nell'editor allegato.
+	 * Renders the exclusion meta box in the attachment editor.
 	 *
-	 * @param WP_Post $post Post (allegato) corrente.
+	 * @param WP_Post $post The current attachment post.
 	 * @return void
 	 */
 	public function render_attachment_exclusion_meta_box( WP_Post $post ): void {
@@ -1291,9 +1295,9 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Salva il meta di esclusione quando l'utente salva l'allegato.
+	 * Saves the exclusion meta when the attachment is saved.
 	 *
-	 * @param int $post_id ID dell'allegato.
+	 * @param int $post_id The attachment id.
 	 * @return void
 	 */
 	public function save_attachment_exclusion_meta( int $post_id ): void {
@@ -1314,11 +1318,11 @@ class Cetus_MO_Admin {
 	}
 
 	// -------------------------------------------------------------------------
-	// Log conversioni
+	// Conversion log
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Render della tabella log delle conversioni (ultime 50 voci).
+	 * Renders the conversion log table, the last 50 entries.
 	 *
 	 * @return void
 	 */
@@ -1368,7 +1372,7 @@ class Cetus_MO_Admin {
 			<p class="description" style="margin-top:6px;">
 				<?php
 				printf(
-					/* translators: %d: numero voci totali nel log */
+					/* translators: %d: total number of entries in the log */
 					esc_html__( 'Showing the last 50 of %d total entries.', 'cetus-media-optimizer' ),
 					count( $log )
 				);
@@ -1380,7 +1384,7 @@ class Cetus_MO_Admin {
 	}
 
 	/**
-	 * Handler AJAX: svuota il log delle conversioni.
+	 * AJAX handler: clears the conversion log.
 	 *
 	 * @return void
 	 */
@@ -1403,7 +1407,7 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Formatta un numero di byte in una stringa leggibile (KB, MB, GB).
+	 * Formats a byte count into something readable (KB, MB, GB).
 	 *
 	 * @param int $bytes Numero di byte.
 	 * @return string
@@ -1426,8 +1430,9 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Render del box che invita l'utente a lasciare una recensione su WordPress.org.
-	 * Usa la classe nativa `.card` di WordPress per integrarsi con l'admin UI.
+	 * Renders the box asking for a review on WordPress.org.
+	 * Uses the native WordPress `.card` class, so it sits in the admin UI rather
+	 * than on top of it.
 	 *
 	 * @return void
 	 */
@@ -1462,24 +1467,25 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Restituisce il CSS inline minimo per il pannello di amministrazione.
-	 * Utilizza classi native WordPress per notice, tabelle e form.
+	 * Returns the minimal inline CSS for the admin panel.
+	 * Notices, tables and forms use the native WordPress classes: what is here is
+	 * only what WordPress has no equivalent for.
 	 * Solo sovrascritture strettamente necessarie.
 	 *
 	 * @return string
 	 */
 	private function get_inline_css(): string {
 		return '
-/* ─── Quality slider ─── */
+/* --- Quality slider --- */
 .cmo-quality-slider { accent-color: #2271b1; cursor: pointer; width: 200px; vertical-align: middle; }
 .cmo-quality-value { display: inline-block; min-width: 36px; text-align: center; font-weight: 700; font-size: 14px; color: #2271b1; background: #e0eaf8; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
 
-/* ─── API key validation feedback ─── */
+/* --- API key validation feedback --- */
 .cmo-key-status { font-size: 13px; margin-left: 4px; }
 .cmo-key-status.ok   { color: #00a32a; }
 .cmo-key-status.fail { color: #d63638; }
 
-/* ─── Progress bar (no WP native equivalent) ─── */
+/* --- Progress bar (no WP native equivalent) --- */
 .cmo-progress-wrap { background: #f6f7f7; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px 20px; margin-bottom: 20px; }
 .cmo-progress-bar-track { background: #dcdcde; border-radius: 20px; height: 16px; overflow: hidden; margin-bottom: 8px; }
 .cmo-progress-bar-fill { height: 100%; background: linear-gradient(90deg, #2271b1, #135e96); border-radius: 20px; transition: width .8s cubic-bezier(.4,0,.2,1); }
@@ -1487,7 +1493,7 @@ class Cetus_MO_Admin {
 .cmo-progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: #787c82; margin-top: 4px; min-height: 16px; }
 .cmo-progress-detail { margin-top: 6px; font-size: 12px; color: #787c82; min-height: 18px; }
 
-/* ─── Log table ─── */
+/* --- Log table --- */
 .cmo-log-wrap { max-height: 380px; overflow-y: auto; border: 1px solid #c3c4c7; border-radius: 4px; }
 .cmo-log-table { margin: 0 !important; font-size: 13px; }
 .cmo-log-table th { background: #f6f7f7; position: sticky; top: 0; z-index: 1; }
@@ -1496,11 +1502,11 @@ class Cetus_MO_Admin {
 .cmo-log-ok   { color: #00a32a; font-weight: 600; }
 .cmo-log-warn { color: #dba617; font-weight: 600; }
 
-/* ─── Danger button ─── */
+/* --- Danger button --- */
 .cmo-btn-danger { color: #d63638 !important; border-color: #d63638 !important; }
 .cmo-btn-danger:hover { background: #d63638 !important; color: #fff !important; }
 
-/* ─── Dashicons dentro pulsanti: reset allineamento e colore ─── */
+/* --- Dashicons inside buttons: reset alignment and colour --- */
 .button .dashicons,
 .button-hero .dashicons {
 	display: inline-flex;
@@ -1522,14 +1528,14 @@ class Cetus_MO_Admin {
 	height: 18px;
 }
 
-/* ─── Alt text preview box ─── */
+/* --- Alt text preview box --- */
 .cmo-alttext-preview { background: #f0f6ff; border: 1px solid #c3d9f7; border-radius: 4px; padding: 14px 18px; margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 0 24px; }
 .cmo-alttext-preview__count { display: flex; align-items: baseline; gap: 6px; }
 .cmo-alttext-preview__num { font-size: 28px; font-weight: 700; color: #1d2327; line-height: 1; }
 .cmo-alttext-preview__label { font-size: 13px; color: #50575e; }
 .cmo-alttext-preview__note { width: 100%; margin: 8px 0 0; font-size: 12px; color: #50575e; }
 
-/* ─── Orphan info ─── */
+/* --- Orphan info --- */
 #cmo-orphan-info { padding: 8px 12px; background: #fff3cd; border-left: 4px solid #dba617; font-size: 14px; color: #614200; margin-bottom: 8px; }
 .cmo-error-log { max-height: 220px; overflow-y: auto; border: 1px solid #f0b8b8; border-radius: 4px; background: #fff8f8; font-size: 12px; font-family: monospace; }
 .cmo-error-log-entry { display: flex; gap: 8px; padding: 5px 10px; border-bottom: 1px solid #fce8e8; }
@@ -1544,9 +1550,9 @@ class Cetus_MO_Admin {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Restituisce il JavaScript inline per la logica del pannello.
-	 * Tab switching rimosso (ora gestito tramite URL nativi WordPress).
-	 * showNotice aggiornata per usare #cmo-notice-wrap con classi .notice native.
+	 * Returns the inline JavaScript driving the panel.
+	 * Tab switching is gone: the tabs are native WordPress URLs now.
+	 * showNotice renders into #cmo-notice-wrap using the native .notice classes.
 	 *
 	 * @return string
 	 */
@@ -1562,7 +1568,7 @@ class Cetus_MO_Admin {
 	var batchStartTime = null;
 	var batchTotal     = 0;
 
-	/* ── Quality sliders ── */
+	/* --- Quality sliders --- */
 	function updateSlider(inputId, valId) {
 		var $input = $("#" + inputId);
 		var $val   = $("#" + valId);
@@ -1572,16 +1578,16 @@ class Cetus_MO_Admin {
 	updateSlider("cmo_webp_quality", "cmo_webp_quality_val");
 	updateSlider("cmo_avif_quality", "cmo_avif_quality_val");
 
-	/* Nascondi/mostra il gruppo qualità quando si sceglie "Nessuna conversione" */
+	/* Show or hide the quality group when "no conversion" is selected */
 	$("input[name=\'cetus_media_format\']").on("change", function() {
 		var isNone = $(this).val() === "none";
-		// Nascondi/mostra qualità di conversione.
+		// Show or hide the conversion quality controls.
 		if (isNone) {
 			$("#cmo-quality-group").hide();
 		} else {
 			$("#cmo-quality-group").show();
 		}
-		// Disabilita/abilita "Nuovi Upload" con feedback visivo.
+		// Enable or disable "new uploads", with visible feedback.
 		var $cb   = $("#cmo_auto_convert");
 		var $lbl  = $("#cmo-label-auto-convert");
 		var $note = $("#cmo-auto-convert-note");
@@ -1596,13 +1602,13 @@ class Cetus_MO_Admin {
 		}
 	});
 
-	/* ── Reset file convertiti ── */
+	/* --- Reset converted files --- */
 	$("#cmo-btn-reset").on("click", function() {
 		if (!confirm(CMO.i18n.confirm_reset)) return;
 		var $btn = $(this).prop("disabled", true);
 		$.post(CMO.ajax_url, { action: "cetus_mo_reset_files", nonce: CMO.nonce }, function(r) {
 			if (r.success) {
-				// Ricarica la pagina per aggiornare tutti i contatori (Da convertire, statistiche, log).
+				// Reload, so every counter refreshes: to convert, statistics, log.
 				window.location.reload();
 			} else {
 				showNotice("error", CMO.i18n.error);
@@ -1614,7 +1620,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Svuota log ── */
+	/* --- Clear the log --- */
 	$("#cmo-btn-clear-log").on("click", function() {
 		if (!confirm(CMO.i18n.confirm_clear_log)) return;
 		$.post(CMO.ajax_url, { action: "cetus_mo_clear_log", nonce: CMO.nonce }, function(r) {
@@ -1625,7 +1631,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Validazione chiave API ── */
+	/* --- API key validation --- */
 	$(document).on("click", ".cmo-validate-key", function() {
 		var $btn      = $(this);
 		var provider  = $btn.data("provider");
@@ -1658,7 +1664,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Salvataggio impostazioni ── */
+	/* --- Saving the settings --- */
 	$("#cmo-save-btn, #cmo-save-btn-bottom").on("click", function(e) {
 		e.preventDefault();
 		var $btn  = $(this);
@@ -1681,7 +1687,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Avvio batch ── */
+	/* --- Starting a batch --- */
 	$("#cmo-btn-start").on("click", function() {
 		$.post(CMO.ajax_url, { action: "cetus_mo_batch_start", nonce: CMO.nonce }, function(r) {
 			if (!r.success) { showNotice("error", (r.data && r.data.message) ? r.data.message : CMO.i18n.error); return; }
@@ -1701,7 +1707,7 @@ class Cetus_MO_Admin {
 		}).fail(function() { showNotice("error", CMO.i18n.error); });
 	});
 
-	/* ── Pausa ── */
+	/* --- Pause --- */
 	$("#cmo-btn-pause").on("click", function() {
 		$.post(CMO.ajax_url, { action: "cetus_mo_batch_pause", nonce: CMO.nonce }, function(r) {
 			if (!r.success) { showNotice("error", (r.data && r.data.message) ? r.data.message : CMO.i18n.error); return; }
@@ -1711,7 +1717,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Riprendi ── */
+	/* --- Resume --- */
 	$("#cmo-btn-resume").on("click", function() {
 		$.post(CMO.ajax_url, { action: "cetus_mo_batch_resume", nonce: CMO.nonce }, function(r) {
 			if (!r.success) { showNotice("error", (r.data && r.data.message) ? r.data.message : CMO.i18n.error); return; }
@@ -1721,7 +1727,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Stop ── */
+	/* --- Stop --- */
 	$("#cmo-btn-stop").on("click", function() {
 		clearTimeout(tickTimeout);
 		$.post(CMO.ajax_url, { action: "cetus_mo_batch_stop", nonce: CMO.nonce }, function() {
@@ -1733,7 +1739,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Tick del batch ── */
+	/* --- The batch tick --- */
 	function scheduleTick() {
 		if (!batchRunning || batchPaused) return;
 		var tickStart = Date.now();
@@ -1821,7 +1827,7 @@ class Cetus_MO_Admin {
 		logEl.scrollTop(logEl[0].scrollHeight);
 	}
 
-	/* ── Generazione Alt Text in massa ── */
+	/* --- Bulk alt text generation --- */
 	var alttextRunning = false;
 
 	$("#cmo-btn-alttext").on("click", function() {
@@ -1872,7 +1878,7 @@ class Cetus_MO_Admin {
 		$("#cmo-btn-alttext").prop("disabled", false);
 	}
 
-	/* ── Scansione file orfani ── */
+	/* --- Scanning for orphaned files --- */
 	$("#cmo-btn-scan-orphans").on("click", function() {
 		var $btn = $(this).prop("disabled", true).text(CMO.i18n.scanning);
 		$.post(CMO.ajax_url, { action: "cetus_mo_scan_orphans", nonce: CMO.nonce }, function(r) {
@@ -1890,7 +1896,7 @@ class Cetus_MO_Admin {
 		.always(function() { $btn.prop("disabled", false).text(CMO.i18n.scan_orphans_btn); });
 	});
 
-	/* ── Converti file orfani ── */
+	/* --- Converting orphaned files --- */
 	var orphanPaused = false;
 	var orphanRunning = false;
 	var orphanTickTimer = null;
@@ -1928,7 +1934,7 @@ class Cetus_MO_Admin {
 			var d = r.data;
 			$("#cmo-orphan-bar").css("width", d.percent + "%");
 			$("#cmo-orphan-progress-text").text(
-				d.processed + " / " + d.total + " — " +
+				d.processed + " / " + d.total + " - " +
 				d.converted + " " + CMO.i18n.converted_label + ", " +
 				d.errors + " " + CMO.i18n.errors_label
 			);
@@ -1937,10 +1943,10 @@ class Cetus_MO_Admin {
 			}
 			if (d.status === "done") {
 				var mb = (d.bytes_saved / (1024*1024)).toFixed(2);
-				showNotice("success", d.converted + " " + CMO.i18n.orphans_done + " — " + mb + " MB");
+				showNotice("success", d.converted + " " + CMO.i18n.orphans_done + " - " + mb + " MB");
 				resetOrphan();
 			} else if (d.status === "paused") {
-				// Non schedulare il prossimo tick, aspetta il resume.
+				// Do not schedule the next tick; wait for the resume.
 			} else {
 				orphanTickTimer = setTimeout(orphanTick, 300);
 			}
@@ -1996,7 +2002,7 @@ class Cetus_MO_Admin {
 		});
 	});
 
-	/* ── Utility: mostra un notice nativo WP in #cmo-notice-wrap ── */
+	/* --- Utility: render a native WP notice into #cmo-notice-wrap --- */
 	function showNotice(type, message) {
 		var cls = (type === "success") ? "notice-success" : "notice-error";
 		var $wrap = $("#cmo-notice-wrap");

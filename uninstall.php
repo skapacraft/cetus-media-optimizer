@@ -1,7 +1,8 @@
 <?php
 /**
- * Eseguito da WordPress quando il plugin viene eliminato dall'admin.
- * Rimuove tutti i dati dal database solo se l'utente ha attivato l'opzione.
+ * Run by WordPress when the plugin is deleted from the admin.
+ * Removes everything from the database, but only if the user asked for that in
+ * the settings.
  *
  * @package CetusMediaOptimizer
  */
@@ -16,7 +17,7 @@ if ( '1' !== get_option( 'cetus_media_delete_on_uninstall', '0' ) ) {
 
 global $wpdb;
 
-// Opzioni persistenti salvate con add_option()/update_option().
+// Persistent options, stored through add_option() and update_option().
 $cetus_mo_options = [
 	'cetus_media_format',
 	'cetus_media_auto_convert',
@@ -41,8 +42,9 @@ foreach ( $cetus_mo_options as $cetus_mo_option ) {
 	delete_option( $cetus_mo_option );
 }
 
-// Dati temporanei salvati con set_transient(): vanno rimossi con delete_transient(),
-// non con delete_option() (la chiave reale è prefissata _transient_).
+// Temporary data stored through set_transient(). It has to be removed with
+// delete_transient() rather than delete_option(), because the real key carries
+// the _transient_ prefix.
 $cetus_mo_transients = [
 	'cetus_mo_avif_probe',
 	'cetus_mo_batch_lock',
@@ -54,6 +56,6 @@ foreach ( $cetus_mo_transients as $cetus_mo_transient ) {
 	delete_transient( $cetus_mo_transient );
 }
 
-// Post meta di esclusione su tutti gli allegati.
+// The per-attachment exclusion meta, across every attachment.
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 $wpdb->delete( $wpdb->postmeta, [ 'meta_key' => 'cetus_mo_exclude' ], [ '%s' ] );

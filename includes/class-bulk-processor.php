@@ -1,10 +1,10 @@
 <?php
 /**
- * Gestione dei processi batch asincroni per l'ottimizzazione di massa.
+ * Asynchronous batch processing, for optimising the whole library.
  *
- * Utilizza AJAX sicuro con nonce per avviare, mettere in pausa, fermare
- * e interrogare lo stato dell'elaborazione. Ogni chiamata processa un
- * piccolo batch per non superare i limiti di timeout del server.
+ * Driven over AJAX, nonce-checked, to start, pause, stop and poll the run. Each
+ * call handles a small batch, so that no single request runs into the server's
+ * timeout. That is what makes this safe on shared hosting.
  *
  * @package CetusMediaOptimizer
  */
@@ -23,21 +23,21 @@ if ( class_exists( 'Cetus_MO_Bulk_Processor' ) ) {
 class Cetus_MO_Bulk_Processor {
 
 	/**
-	 * Numero di immagini elaborate per ogni tick AJAX.
+	 * How many images each AJAX tick handles.
 	 *
 	 * @var int
 	 */
 	private const BATCH_SIZE = 5;
 
 	/**
-	 * Chiave del transient usato come lock per evitare esecuzioni parallele.
+	 * The transient used as a lock, so two runs cannot overlap.
 	 *
 	 * @var string
 	 */
 	private const LOCK_KEY = 'cetus_mo_batch_lock';
 
 	/**
-	 * Chiave dell'opzione DB per lo stato del processo corrente.
+	 * The option holding the state of the current run.
 	 *
 	 * @var string
 	 */
@@ -51,7 +51,7 @@ class Cetus_MO_Bulk_Processor {
 	private ?Cetus_MO_Optimizer $optimizer = null;
 
 	/**
-	 * Istanza AI (per la generazione automatica alt text durante il batch).
+	 * The AI instance, used to generate alt text during a batch.
 	 *
 	 * @var Cetus_MO_AI|null
 	 */
@@ -62,12 +62,12 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Registra tutti gli handler AJAX.
+	 * Registers every AJAX handler.
 	 *
 	 * @return void
 	 */
 	public function init(): void {
-		// Solo utenti autenticati con i permessi giusti.
+		// Authenticated users with the right capability only.
 		add_action( 'wp_ajax_cetus_mo_batch_start', [ $this, 'ajax_start' ] );
 		add_action( 'wp_ajax_cetus_mo_batch_tick', [ $this, 'ajax_tick' ] );
 		add_action( 'wp_ajax_cetus_mo_batch_pause', [ $this, 'ajax_pause' ] );
@@ -90,10 +90,10 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Avvia un nuovo processo batch sulla libreria media.
-	 * Recupera tutti gli allegati immagine e li mette in coda.
+	 * Starts a new batch run over the media library, queueing every image
+	 * attachment.
 	 *
-	 * @return void  (termina con wp_send_json_*)
+	 * @return void Ends in a wp_send_json_* call.
 	 */
 	public function ajax_start(): void {
 		$this->verify_request( 'cetus_mo_bulk_nonce' );
@@ -132,7 +132,7 @@ class Cetus_MO_Bulk_Processor {
 		update_option( self::PROGRESS_KEY, $progress );
 		set_transient( self::LOCK_KEY, '1', HOUR_IN_SECONDS );
 
-		// Se il cron è abilitato, pianifica i tick automatici ogni 5 minuti.
+		// With cron enabled, schedule the automatic ticks every 5 minutes.
 		if ( '1' === get_option( 'cetus_media_cron_enabled', '0' ) ) {
 			if ( ! wp_next_scheduled( 'cetus_mo_cron_batch' ) ) {
 				wp_schedule_event( time(), 'cetus_mo_five_minutes', 'cetus_mo_cron_batch' );
@@ -153,12 +153,12 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	// -------------------------------------------------------------------------
-	// Handler AJAX: tick (un singolo batch)
+	// AJAX handler: tick, meaning one batch
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Elabora il prossimo batch di immagini in coda.
-	 * Il frontend chiama questo endpoint in loop finché lo status non è 'done'.
+	 * Handles the next batch of queued images.
+	 * The front end calls this in a loop until the status comes back 'done'.
 	 *
 	 * @return void
 	 */
@@ -184,7 +184,7 @@ class Cetus_MO_Bulk_Processor {
 		foreach ( $batch as $attachment_id ) {
 			$attachment_id = (int) $attachment_id;
 
-			// Salta gli allegati esclusi tramite il meta box.
+			// Skip attachments excluded from the meta box.
 			if ( $optimizer->is_attachment_excluded( $attachment_id ) ) {
 				++$progress['skipped'];
 				++$progress['processed'];
@@ -222,7 +222,7 @@ class Cetus_MO_Bulk_Processor {
 				++$progress['skipped'];
 			}
 
-			// Genera alt text con AI se almeno una chiave è configurata.
+			// Generate alt text through the AI when a key is configured.
 			if ( $this->ai_enabled() ) {
 				$ai->generate_and_save_alt_text( $attachment_id );
 			}
@@ -230,7 +230,7 @@ class Cetus_MO_Bulk_Processor {
 			++$progress['processed'];
 		}
 
-		// Controlla se la coda è esaurita.
+		// Has the queue run out?
 		if ( empty( $progress['queue'] ) ) {
 			$progress['status'] = 'done';
 			delete_transient( self::LOCK_KEY );
@@ -260,7 +260,7 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Mette in pausa il processo batch corrente (senza svuotare la coda).
+	 * Pauses the current run, leaving the queue intact.
 	 *
 	 * @return void
 	 */
@@ -286,7 +286,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Riprende un processo in pausa.
+	 * Resumes a paused run.
 	 *
 	 * @return void
 	 */
@@ -320,7 +320,7 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Ferma e azzera il processo batch corrente.
+	 * Stops the current run and clears it.
 	 *
 	 * @return void
 	 */
@@ -343,7 +343,7 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Restituisce lo stato corrente del processo batch (polling leggero).
+	 * Returns the current state of the run, for cheap polling.
 	 *
 	 * @return void
 	 */
@@ -377,7 +377,7 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Avvia la scansione dei file orfani e restituisce il conteggio.
+	 * Scans for orphaned files and returns the count.
 	 *
 	 * @return void
 	 */
@@ -401,8 +401,8 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Converte e ottimizza i file orfani trovati.
-	 * Opera in modalità best-effort: non fa rollback in caso di errore parziale.
+	 * Converts and optimises the orphaned files that were found.
+	 * Best effort: a partial failure is not rolled back.
 	 *
 	 * @return void
 	 */
@@ -443,7 +443,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Avvia la conversione degli orfani: scansiona e salva la coda.
+	 * Starts the orphan conversion: scans, then stores the queue.
 	 *
 	 * @return void
 	 */
@@ -454,19 +454,20 @@ class Cetus_MO_Bulk_Processor {
 		$scan      = $optimizer->find_orphaned_files();
 		$format    = $optimizer->resolve_format();
 
-		// Filtra i file companion (già convertiti o già nel formato target).
-		// I file .webp/.avif generati dal plugin non sono registrati in WP e finiscono
-		// nell'elenco orfani, ma non devono essere riconvertiti.
+		// Filter out the companion files, which are already converted or already
+		// in the target format. The .webp and .avif files this plugin generates
+		// are not registered in WordPress, so they land in the orphan list, but
+		// they must not be converted again.
 		$files = array_values(
 			array_filter(
 				$scan['files'],
 				static function ( string $file ) use ( $optimizer, $format ): bool {
 					$ext = strtolower( pathinfo( $file, PATHINFO_EXTENSION ) );
-					// Salta se il file è già nel formato di destinazione.
+					// Skip anything already in the target format.
 					if ( $ext === $format ) {
 						return false;
 					}
-					// Salta se esiste già un file convertito accanto all'originale.
+					// Skip when a converted file already sits next to the original.
 					$output = $optimizer->build_output_path( $file, $format );
 					return ! file_exists( $output );
 				}
@@ -474,7 +475,8 @@ class Cetus_MO_Bulk_Processor {
 		);
 
 		if ( empty( $files ) ) {
-			// Nessun file da convertire: distingui "niente trovato" da "già tutti ottimizzati".
+			// Nothing to convert. Tell "found nothing" apart from "all of them are
+			// optimised already": they look the same to the user otherwise.
 			$reason = $scan['count'] > 0 ? 'already_optimized' : 'none_found';
 			wp_send_json_success(
 				[
@@ -508,7 +510,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Processa il prossimo batch di file orfani.
+	 * Handles the next batch of orphaned files.
 	 *
 	 * @return void
 	 */
@@ -642,14 +644,14 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	// -------------------------------------------------------------------------
-	// Handler AJAX: generazione Alt Text in massa
+	// AJAX handler: bulk alt text generation
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Elabora un singolo tick di generazione Alt Text per le immagini che
-	 * non hanno ancora il meta '_wp_attachment_image_alt' valorizzato.
-	 * Riceve l'offset corrente dalla chiamata JS e restituisce i dati di
-	 * avanzamento per il tick successivo.
+	 * Handles one tick of alt text generation, over the images that have no
+	 * '_wp_attachment_image_alt' value yet.
+	 * It takes the current offset from the JS call and returns the progress the
+	 * next tick needs.
 	 *
 	 * @return void
 	 */
@@ -658,7 +660,7 @@ class Cetus_MO_Bulk_Processor {
 
 		$offset = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce verified via verify_request()
 
-		// Conta il totale delle immagini senza alt text (solo alla prima chiamata).
+		// Count the images with no alt text, on the first call only.
 		$total = (int) ( new WP_Query(
 			[
 				'post_type'      => 'attachment',
@@ -667,7 +669,7 @@ class Cetus_MO_Bulk_Processor {
 				'posts_per_page' => -1,
 				'fields'         => 'ids',
 				'no_found_rows'  => false,
-				// Filtra solo quelli senza alt text o con alt text vuoto.
+				// Keep only those with no alt text, or an empty one.
 				'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 					'relation' => 'OR',
 					[
@@ -683,7 +685,7 @@ class Cetus_MO_Bulk_Processor {
 			]
 		) )->found_posts;
 
-		// Recupera il batch corrente (offset + BATCH_SIZE).
+		// Fetch the current batch, from offset for BATCH_SIZE.
 		$query = new WP_Query(
 			[
 				'post_type'      => 'attachment',
@@ -716,7 +718,7 @@ class Cetus_MO_Bulk_Processor {
 		$errors_this_tick  = 0;
 
 		foreach ( $ids as $attachment_id ) {
-			// Doppio controllo: salta se nel frattempo è stato valorizzato.
+			// Check again: it may have been filled in since the count.
 			$existing = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
 			if ( '' !== trim( (string) $existing ) ) {
 				++$skipped_this_tick;
@@ -751,7 +753,8 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Elimina tutti i file WebP/AVIF dalla cartella uploads e azzera log e savings.
+	 * Deletes every WebP and AVIF from uploads, and clears the log and the
+	 * savings counter. Originals are never touched.
 	 *
 	 * @return void
 	 */
@@ -762,7 +765,7 @@ class Cetus_MO_Bulk_Processor {
 			wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'cetus-media-optimizer' ) ], 403 );
 		}
 
-		// Interrompe un eventuale batch in corso prima di cancellare i file.
+		// Stop any run in progress before deleting files.
 		delete_transient( self::LOCK_KEY );
 		delete_option( self::PROGRESS_KEY );
 
@@ -783,12 +786,12 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	// -------------------------------------------------------------------------
-	// WP-Cron: batch in background
+	// WP-Cron: the background batch
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Esegue un singolo tick del batch direttamente (senza HTTP), invocato da WP-Cron.
-	 * Se la coda è vuota o il cron non è abilitato, termina silenziosamente.
+	 * Runs one batch tick directly, with no HTTP request, from WP-Cron.
+	 * Returns quietly when the queue is empty or cron is not enabled.
 	 *
 	 * @return void
 	 */
@@ -807,9 +810,9 @@ class Cetus_MO_Bulk_Processor {
 		$optimizer  = $this->get_optimizer();
 		$ai         = $this->get_ai();
 		$time_start = microtime( true );
-		$time_limit = 25.0; // secondi — margine sicuro sotto il timeout PHP di 30s.
+		$time_limit = 25.0; // Seconds: a safe margin under the 30s PHP timeout.
 
-		// Esegue tanti batch consecutivi finché c'è coda e tempo disponibile.
+		// Run consecutive batches for as long as there is queue and time left.
 		while ( ! empty( $progress['queue'] ) && ( microtime( true ) - $time_start ) < $time_limit ) {
 			$batch = array_splice( $progress['queue'], 0, self::BATCH_SIZE );
 
@@ -866,10 +869,10 @@ class Cetus_MO_Bulk_Processor {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Verifica il nonce e i permessi di ogni richiesta AJAX.
-	 * Termina l'esecuzione con un errore 403 se i controlli falliscono.
+	 * Checks the nonce and the capability on every AJAX request, and ends the
+	 * request with a 403 when either fails.
 	 *
-	 * @param string $nonce_action Azione del nonce da verificare.
+	 * @param string $nonce_action The nonce action to verify.
 	 * @return void
 	 */
 	private function verify_request( string $nonce_action ): void {
@@ -885,7 +888,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Costruisce la coda di tutti gli allegati immagine da ottimizzare.
+	 * Builds the queue of every image attachment that needs optimising.
 	 *
 	 * @return array<int> Array di attachment ID.
 	 */
@@ -904,9 +907,10 @@ class Cetus_MO_Bulk_Processor {
 		$all_ids   = array_map( 'intval', $query->posts );
 		$optimizer = $this->get_optimizer();
 
-		// Filtra subito: include solo gli ID che hanno ancora almeno un file da convertire
-		// (file principale o una delle size). Così il tick non salta immagini con
-		// size non ancora convertite anche se il file principale esiste già.
+		// Filter here rather than later: keep only the ids that still have at
+		// least one file to convert, whether the main file or one of the sizes.
+		// That way a tick does not skip an image whose sizes are unconverted just
+		// because the main file already exists.
 		return array_values(
 			array_filter(
 				$all_ids,
@@ -919,16 +923,17 @@ class Cetus_MO_Bulk_Processor {
 						return false;
 					}
 					$format = $optimizer->resolve_format();
-					// Il file principale non è ancora convertito → includi.
+					// The main file is unconverted, so include it.
 					if ( ! file_exists( $optimizer->build_output_path( $file, $format ) ) ) {
 						return true;
 					}
-					// Il file principale è convertito: controlla se manca qualche size.
+					// The main file is converted: check whether a size is missing.
 					$metadata = wp_get_attachment_metadata( $id );
 					if ( empty( $metadata['sizes'] ) || ! is_array( $metadata['sizes'] ) ) {
 						return false;
 					}
-					// Usa dirname del file principale (path assoluto garantito) per localizzare le size.
+					// Locate the sizes from dirname() of the main file, which is
+					// guaranteed to be an absolute path.
 					$size_dir = trailingslashit( dirname( $file ) );
 					foreach ( $metadata['sizes'] as $size_data ) {
 						if ( empty( $size_data['file'] ) ) {
@@ -936,7 +941,7 @@ class Cetus_MO_Bulk_Processor {
 						}
 						$size_path = $size_dir . $size_data['file'];
 						if ( file_exists( $size_path ) && ! file_exists( $optimizer->build_output_path( $size_path, $format ) ) ) {
-							return true; // Almeno una size non è ancora convertita.
+							return true; // At least one size is still unconverted.
 						}
 					}
 					return false;
@@ -946,7 +951,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Legge lo stato del processo dal database.
+	 * Reads the run state from the database.
 	 *
 	 * @return array<string, mixed>|null
 	 */
@@ -968,7 +973,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Istanza lazy del modulo AI.
+	 * Lazily constructed AI instance.
 	 *
 	 * @return Cetus_MO_AI
 	 */
@@ -980,7 +985,7 @@ class Cetus_MO_Bulk_Processor {
 	}
 
 	/**
-	 * Controlla se almeno un provider AI è configurato e abilitabile.
+	 * Whether at least one AI provider is configured and usable.
 	 *
 	 * @return bool
 	 */

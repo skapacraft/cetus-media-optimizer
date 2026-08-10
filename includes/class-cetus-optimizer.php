@@ -1,9 +1,11 @@
 <?php
 /**
- * Logica di conversione immagini AVIF/WebP e analisi file orfani.
+ * AVIF and WebP conversion, and the orphaned-file scan.
  *
- * Crea i file ottimizzati affiancati agli originali senza mai eliminare
- * i sorgenti. Forza le anteprime JPG nella Libreria Media di WordPress.
+ * Optimised files are created alongside the originals, and the source is never
+ * deleted: for most sites the media library is the only copy of those images
+ * that exists. In the WordPress media library the JPG thumbnails are forced, so
+ * the admin never shows a broken preview.
  *
  * @package CetusMediaOptimizer
  */
@@ -22,21 +24,21 @@ if ( class_exists( 'Cetus_MO_Optimizer' ) ) {
 class Cetus_MO_Optimizer {
 
 	/**
-	 * Qualità di fallback per WebP, usata solo se l'opzione non è ancora nel DB.
+	 * Fallback WebP quality, used only while the option is not yet in the database.
 	 *
 	 * @var int
 	 */
 	private const WEBP_QUALITY_DEFAULT = 82;
 
 	/**
-	 * Qualità di fallback per AVIF, usata solo se l'opzione non è ancora nel DB.
+	 * Fallback AVIF quality, used only while the option is not yet in the database.
 	 *
 	 * @var int
 	 */
 	private const AVIF_QUALITY_DEFAULT = 75;
 
 	/**
-	 * Mime type supportati per la conversione.
+	 * The MIME types this plugin will convert.
 	 *
 	 * @var array<string>
 	 */
@@ -44,45 +46,47 @@ class Cetus_MO_Optimizer {
 		'image/jpeg',
 		'image/png',
 		'image/gif',
-		'image/webp',  // permette la ri-conversione WebP → AVIF.
+		'image/webp',  // Allows re-converting WebP into AVIF.
 	];
 
 	// -------------------------------------------------------------------------
-	// Inizializzazione
+	// Initialisation
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Registra gli hook WordPress necessari.
+	 * Registers the WordPress hooks.
 	 *
 	 * @return void
 	 */
 	public function init(): void {
-		// Conversione automatica al momento dell'upload (se abilitata).
+		// Automatic conversion on upload, when that is enabled.
 		add_filter( 'wp_generate_attachment_metadata', [ $this, 'on_new_upload' ], 10, 2 );
 
-		// Sostituzione URL nel frontend (src e srcset) con i formati ottimizzati.
-		// Priorità PHP_INT_MAX: ci posizioniamo sempre dopo qualsiasi filtro del tema,
-		// sovrascrivendo manipolazioni errate delle URL senza output buffering.
+		// Swap the front-end URLs, src and srcset, to the optimised formats.
+		// PHP_INT_MAX puts us after any filter the theme registers, so a theme
+		// that mangles the URL is corrected without needing output buffering.
 		add_filter( 'wp_get_attachment_image_src', [ $this, 'swap_src_to_optimized' ], PHP_INT_MAX, 4 );
 		add_filter( 'wp_calculate_image_srcset', [ $this, 'swap_srcset_to_optimized' ], PHP_INT_MAX, 5 );
 
-		// Sostituisce gli URL nelle immagini presenti nel contenuto dei post.
+		// Swap the URLs of images embedded in post content.
 		add_filter( 'wp_filter_content_tags', [ $this, 'swap_content_image_urls' ], PHP_INT_MAX );
 
-		// Sanitizzazione finale su the_content e post_thumbnail_html:
-		// • sincronizza src e href Lightbox con il formato già presente nel srcset
-		// • rollback a .jpg/.png se il file ottimizzato non esiste su disco.
+		// A final pass over the_content and post_thumbnail_html, which does two
+		// things: it brings the src and the lightbox href into line with whatever
+		// format the srcset already uses, and it rolls back to .jpg or .png when
+		// the optimised file is not actually on disk.
 		add_filter( 'the_content', [ $this, 'sanitize_optimized_urls' ], PHP_INT_MAX );
 		add_filter( 'post_thumbnail_html', [ $this, 'sanitize_optimized_urls' ], PHP_INT_MAX );
 
-		// Rigenera il srcset mancante sull'immagine in evidenza quando il tema
-		// ha modificato il src prima che wp_calculate_image_srcset() potesse agire.
-		// Usa 5 parametri per ricevere $post_thumbnail_id direttamente dal filtro
-		// anziché doverlo derivare dalla classe CSS (che il tema potrebbe non includere).
+		// Rebuild a missing srcset on the featured image, for the case where the
+		// theme rewrote the src before wp_calculate_image_srcset() could run.
+		// It takes 5 parameters so $post_thumbnail_id arrives from the filter
+		// directly, rather than being derived from a CSS class the theme may not
+		// have included.
 		add_filter( 'post_thumbnail_html', [ $this, 'rebuild_srcset_if_missing' ], PHP_INT_MAX, 5 );
 
-		// Nel contesto admin (Libreria Media) mantieni sempre i JPG nativi
-		// per evitare anteprime rotte nell'interfaccia di WordPress.
+		// In the admin, the media library keeps the native JPGs, so a browser
+		// without AVIF support never shows a broken preview there.
 		if ( is_admin() ) {
 			add_filter( 'wp_get_attachment_image_src', [ $this, 'force_jpg_thumbnail' ], 30, 4 );
 			add_filter( 'wp_prepare_attachment_for_js', [ $this, 'force_js_thumbnail' ], 30, 3 );
@@ -90,15 +94,15 @@ class Cetus_MO_Optimizer {
 	}
 
 	// -------------------------------------------------------------------------
-	// Hook: nuovo upload
+	// Hook: a new upload
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Callback per 'wp_generate_attachment_metadata'.
-	 * Converte l'immagine appena caricata se l'opzione auto-convert è attiva.
+	 * Callback for 'wp_generate_attachment_metadata'.
+	 * Converts the image that was just uploaded, when auto-convert is on.
 	 *
-	 * @param array<string, mixed> $metadata      Metadati dell'allegato.
-	 * @param int                  $attachment_id ID dell'allegato.
+	 * @param array<string, mixed> $metadata      The attachment metadata.
+	 * @param int                  $attachment_id The attachment id.
 	 * @return array<string, mixed>
 	 */
 	public function on_new_upload( array $metadata, int $attachment_id ): array {
@@ -116,17 +120,17 @@ class Cetus_MO_Optimizer {
 			return $metadata;
 		}
 
-		// Salta se l'allegato è escluso dall'utente tramite il meta box.
+		// Skip attachments the user excluded from the meta box.
 		if ( $this->is_attachment_excluded( $attachment_id ) ) {
 			return $metadata;
 		}
 
-		// Esegui la conversione solo se l'utente non ha scelto "Nessuna conversione".
+		// Convert only when the user has not chosen "no conversion".
 		if ( ! $this->conversion_disabled() ) {
 			$this->convert_single( $file, $attachment_id );
 		}
 
-		// Genera l'alt text via AI se almeno una chiave provider è configurata.
+		// Generate the alt text through the AI, when a provider key is configured.
 		if ( $this->ai_keys_configured() && class_exists( 'Cetus_MO_AI' ) ) {
 			( new Cetus_MO_AI() )->generate_and_save_alt_text( $attachment_id );
 		}
@@ -135,7 +139,7 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Verifica se almeno un provider AI ha una chiave API impostata.
+	 * Whether at least one AI provider has a key set.
 	 *
 	 * @return bool
 	 */
@@ -145,16 +149,17 @@ class Cetus_MO_Optimizer {
 	}
 
 	// -------------------------------------------------------------------------
-	// Conversione singola immagine
+	// Converting a single image
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Converte un singolo file immagine nel formato scelto nelle impostazioni.
-	 * Crea il file ottimizzato affiancato all'originale (es. foto.jpg → foto.webp).
-	 * Non elimina mai l'originale. Salta la conversione se il file esiste già.
+	 * Converts one image file into the format chosen in the settings, writing it
+	 * alongside the original (photo.jpg becomes photo.webp). The original is
+	 * never deleted, and an existing optimised file is left alone.
 	 *
-	 * @param string $source_path  Percorso assoluto del file sorgente.
-	 * @param int    $attachment_id ID allegato WordPress (0 se fuori dalla libreria).
+	 * @param string $source_path   Absolute path to the source file.
+	 * @param int    $attachment_id WordPress attachment id, 0 when the file is
+	 *                              outside the media library.
 	 * @return array{success: bool, skipped: bool, output_path: string, bytes_saved: int, message: string}
 	 */
 	public function convert_single( string $source_path, int $attachment_id = 0 ): array {
@@ -167,37 +172,40 @@ class Cetus_MO_Optimizer {
 		];
 
 		if ( ! file_exists( $source_path ) ) {
-			$result['message'] = sprintf( 'File non trovato: %s', esc_html( basename( $source_path ) ) );
+			$result['message'] = sprintf( 'File not found: %s', esc_html( basename( $source_path ) ) );
 			return $result;
 		}
 
 		$format = $this->resolve_format();
 
-		// I PNG con canale alpha non vengono convertiti correttamente in AVIF dalla maggior
-		// parte delle build libheif su hosting condivisi (risultato: quadrato nero).
-		// Fallback obbligatorio a WebP, che gestisce l'alpha nativamente senza problemi.
+		// Most libheif builds on shared hosting do not convert a PNG with an alpha
+		// channel to AVIF correctly: the result is a black square. Falling back to
+		// WebP is not optional here, and WebP handles alpha natively anyway.
 		if ( 'avif' === $format && $this->source_has_alpha( $source_path ) ) {
 			$format = 'webp';
 		}
 
-		// Genera il percorso di output sostituendo l'estensione.
+		// The output path is the source path with the extension swapped.
 		$output_path = $this->build_output_path( $source_path, $format );
 
-		// Salta se il file ottimizzato esiste già, ma converti comunque le size mancanti.
+		// An existing optimised file is left alone, but the missing sizes are
+		// still converted: the two can be out of step.
 		if ( file_exists( $output_path ) ) {
 			$result['skipped'] = true;
-			$result['message'] = 'File ottimizzato già presente, saltato.';
+			$result['message'] = 'Optimised file already present, skipped.';
 			if ( $attachment_id > 0 ) {
 				$this->convert_attachment_sizes( $attachment_id, $format );
 			}
 			return $result;
 		}
 
-		// Esegui la conversione con Imagick (preferito) o GD.
+		// Convert with Imagick, preferred, or GD.
 		$converted = $this->do_convert( $source_path, $output_path, $format );
 
-		// Se AVIF fallisce (es. detector alpha), cambia il formato globalmente in WebP
-		// e riprova: così anche le size successive useranno WebP in modo coerente.
+		// When AVIF fails, the alpha detector being one way it can, switch the
+		// format to WebP and retry. Doing it here rather than per file means the
+		// sizes that follow use WebP too, so one attachment does not end up half
+		// in one format and half in the other.
 		if ( ! $converted && 'avif' === $format ) {
 			$format      = 'webp';
 			$output_path = $this->build_output_path( $source_path, $format );
@@ -205,7 +213,7 @@ class Cetus_MO_Optimizer {
 		}
 
 		if ( ! $converted ) {
-			$result['message'] = 'Conversione fallita (Imagick/GD non disponibili o errore interno).';
+			$result['message'] = 'Conversion failed: Imagick and GD unavailable, or an internal error.';
 			return $result;
 		}
 
@@ -216,16 +224,16 @@ class Cetus_MO_Optimizer {
 		$result['output_path'] = $output_path;
 		$result['bytes_saved'] = max( 0, $original_size - $new_size );
 		$result['message']     = sprintf(
-			'Convertito in %s. Risparmio: %s KB.',
+			'Converted to %s. Saved: %s KB.',
 			strtoupper( $format ),
 			number_format( $result['bytes_saved'] / 1024, 1 )
 		);
 
-		// Aggiorna il contatore cumulativo persistente.
+		// Update the cumulative saved-bytes counter.
 		$prev = (int) get_option( 'cetus_mo_total_bytes_saved', 0 );
 		update_option( 'cetus_mo_total_bytes_saved', $prev + $result['bytes_saved'] );
 
-		// Registra nel log delle conversioni.
+		// Record it in the conversion log.
 		self::add_log_entry(
 			[
 				'attachment_id' => $attachment_id,
@@ -236,7 +244,7 @@ class Cetus_MO_Optimizer {
 			]
 		);
 
-		// Converti anche tutti i sub-size (thumbnails) generati da WordPress.
+		// Convert the sub-sizes WordPress generated as well.
 		if ( $attachment_id > 0 ) {
 			$this->convert_attachment_sizes( $attachment_id, $format );
 		}
@@ -245,10 +253,11 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Converte tutti i sub-size (thumbnail, medium, large…) di un allegato.
+	 * Converts every sub-size of an attachment: thumbnail, medium, large and the
+	 * rest.
 	 *
-	 * @param int    $attachment_id ID allegato.
-	 * @param string $format        Formato target ('webp' o 'avif').
+	 * @param int    $attachment_id The attachment id.
+	 * @param string $format        Target format, 'webp' or 'avif'.
 	 * @return void
 	 */
 	private function convert_attachment_sizes( int $attachment_id, string $format ): void {
@@ -260,9 +269,10 @@ class Cetus_MO_Optimizer {
 		$dir      = trailingslashit( dirname( $main_file ) );
 		$basename = pathinfo( $main_file, PATHINFO_FILENAME );
 
-		// Cerca i thumbnail generati da WordPress ({nome}-WxH.ext) direttamente
-		// sul filesystem: più robusto di leggere _wp_attachment_metadata['sizes'],
-		// il cui campo 'file' su alcuni hosting contiene il path assoluto.
+		// Look for the thumbnails WordPress generated ({name}-WxH.ext) on the
+		// filesystem directly. That is sturdier than reading
+		// _wp_attachment_metadata['sizes'], whose 'file' field holds an absolute
+		// path on some hosts and a bare filename on others.
 		$candidates = glob( $dir . $basename . '-[0-9]*x[0-9]*.*' );
 		if ( empty( $candidates ) ) {
 			return;
@@ -281,34 +291,35 @@ class Cetus_MO_Optimizer {
 	}
 
 	// -------------------------------------------------------------------------
-	// Motore di conversione (Imagick / GD)
+	// The conversion engine: Imagick, or GD
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Esegue la conversione del file chiamando Imagick o GD come fallback.
+	 * Runs the conversion through Imagick, falling back to GD.
 	 *
-	 * @param string $source Percorso assoluto sorgente.
-	 * @param string $dest   Percorso assoluto destinazione.
-	 * @param string $format 'webp' o 'avif'.
-	 * @return bool True se la conversione ha avuto successo.
+	 * @param string $source Absolute source path.
+	 * @param string $dest   Absolute destination path.
+	 * @param string $format 'webp' or 'avif'.
+	 * @return bool True when the conversion succeeded.
 	 */
 	private function do_convert( string $source, string $dest, string $format ): bool {
-		// Valida il file leggendo i magic bytes: scarta file corrotti o con estensione
-		// errata prima di passarli a Imagick o GD, evitando ImagickException e Warning.
+		// Validate by reading the magic bytes, which rejects a corrupt file, or one
+		// whose extension lies, before it reaches Imagick or GD. Without this the
+		// failure arrives as an ImagickException or a PHP warning instead.
 		$info = @getimagesize( $source ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( ! $info || empty( $info['mime'] ) ) {
 			return false;
 		}
 
-		// Tenta con Imagick per prima.
+		// Imagick first.
 		if ( $this->imagick_available( $format ) ) {
 			if ( $this->convert_with_imagick( $source, $dest, $format ) ) {
 				return true;
 			}
-			// Imagick ha fallito (es. libheif scrive 0 byte): tenta il fallback.
+			// Imagick failed, libheif writing a 0-byte file being one way: fall through.
 		}
 
-		// Fallback a GD (solo WebP; GD non supporta AVIF su PHP < 8.1).
+		// Fall back to GD, WebP only: GD has no AVIF support below PHP 8.1.
 		if ( 'webp' === $format && $this->gd_webp_available() ) {
 			return $this->convert_with_gd( $source, $dest );
 		}
@@ -317,16 +328,17 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Conversione tramite Imagick.
+	 * Conversion through Imagick.
 	 *
-	 * @param string $source Percorso sorgente.
-	 * @param string $dest   Percorso destinazione.
-	 * @param string $format 'webp' o 'avif'.
+	 * @param string $source Source path.
+	 * @param string $dest   Destination path.
+	 * @param string $format 'webp' or 'avif'.
 	 * @return bool
 	 */
 	private function convert_with_imagick( string $source, string $dest, string $format ): bool {
-		// Pre-check: immagini con più di 40 megapixel rischiano di esaurire la cache
-		// Imagick su hosting condiviso. Usiamo getimagesize() che legge solo l'header.
+		// Anything above 40 megapixels risks exhausting the Imagick cache on shared
+		// hosting, so it is refused before Imagick ever opens it. getimagesize()
+		// reads the header only, which is what makes the check cheap.
 		$size = @getimagesize( $source ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( $size && isset( $size[0], $size[1] ) ) {
 			$megapixels = ( $size[0] * $size[1] ) / 1_000_000;
@@ -339,7 +351,8 @@ class Cetus_MO_Optimizer {
 		}
 
 		try {
-			// Limita la memoria Imagick per evitare cache resources exhausted su hosting condiviso.
+			// Cap the Imagick memory, so a large image fails cleanly instead of
+			// hitting "cache resources exhausted" on shared hosting.
 			Imagick::setResourceLimit( Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024 );
 			Imagick::setResourceLimit( Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024 );
 
@@ -353,8 +366,9 @@ class Cetus_MO_Optimizer {
 				$original->setImageAlphaChannel( Imagick::ALPHACHANNEL_ACTIVATE );
 
 				if ( in_array( $target_fmt, [ 'webp', 'avif' ], true ) ) {
-					// Tecnica della tela trasparente: composita l'immagine su un canvas
-					// con sfondo trasparente per preservare correttamente l'alpha channel.
+					// The transparent canvas trick: composite the image onto a canvas
+					// with a transparent background, which is what preserves the alpha
+					// channel correctly through the conversion.
 					$canvas = new Imagick();
 					$canvas->newImage( $original->getImageWidth(), $original->getImageHeight(), new ImagickPixel( 'transparent' ) );
 					$canvas->compositeImage( $original, Imagick::COMPOSITE_OVER, 0, 0 );
@@ -362,16 +376,18 @@ class Cetus_MO_Optimizer {
 					$original->destroy();
 					$original = null;
 				} else {
-					// Destinazione senza trasparenza (es. JPG): appiattisci su sfondo bianco.
+					// A destination with no transparency, JPG for instance: flatten
+					// onto white.
 					$original->setImageBackgroundColor( new ImagickPixel( 'white' ) );
 					$image = $original->mergeImageLayers( Imagick::LAYERMETHOD_FLATTEN );
 					$original->destroy();
 					$original = null;
 				}
 			} else {
-				// Immagine senza alpha (es. JPEG): appiattisci normalmente.
-				// Inner try/catch: libera RAM immediatamente se Imagick esaurisce le risorse
-				// così do_convert() può tentare il fallback GD con più memoria disponibile.
+				// No alpha channel, a JPEG for instance: flatten normally.
+				// The inner try/catch frees the RAM the moment Imagick runs out of
+				// resources, so that do_convert() can attempt the GD fallback with
+				// that memory back rather than against the same ceiling.
 				try {
 					$image = $original->mergeImageLayers( Imagick::LAYERMETHOD_FLATTEN );
 					$original->destroy();
@@ -399,9 +415,10 @@ class Cetus_MO_Optimizer {
 
 			$written = $image->writeImage( $dest );
 
-			// Detector: se l'AVIF generato ha perso il canale alpha (build libheif difettose),
-			// elimina il file e restituisce false. Il fallback globale a WebP avviene in convert_single,
-			// così anche le size vengono elaborate nel formato corretto.
+			// Detector: when the AVIF that came out has lost the alpha channel,
+			// which faulty libheif builds do silently, delete it and report failure.
+			// The switch to WebP happens up in convert_single(), so the sizes are
+			// processed in the right format too.
 			if ( 'avif' === $target_fmt && $has_alpha && $written && file_exists( $dest ) ) {
 				try {
 					$check = new Imagick( $dest );
@@ -431,7 +448,7 @@ class Cetus_MO_Optimizer {
 				$image->destroy();
 			}
 
-			// Alcune build di libheif/libavif scrivono 0 byte senza lanciare eccezioni.
+			// Some libheif and libavif builds write 0 bytes and throw nothing.
 			if ( ! $written || ! file_exists( $dest ) || (int) filesize( $dest ) === 0 ) {
 				if ( file_exists( $dest ) ) {
 					wp_delete_file( $dest );
@@ -452,15 +469,15 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Conversione tramite GD (solo WebP).
+	 * Conversion through GD, WebP only.
 	 *
-	 * @param string $source Percorso sorgente.
-	 * @param string $dest   Percorso destinazione WebP.
+	 * @param string $source Source path.
+	 * @param string $dest   Destination path for the WebP.
 	 * @return bool
 	 */
 	private function convert_with_gd( string $source, string $dest ): bool {
-		// Il MIME reale è già stato validato in do_convert() con getimagesize().
-		// Qui lo rileggiamo solo per scegliere la funzione GD corretta.
+		// The real MIME type was already validated in do_convert() through
+		// getimagesize(). It is read again here only to pick the right GD function.
 		$mime = @getimagesize( $source )['mime'] ?? ''; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 
 		$image = match ( $mime ) {
@@ -474,7 +491,7 @@ class Cetus_MO_Optimizer {
 			return false;
 		}
 
-		// Preserva la trasparenza per PNG.
+		// Preserve transparency on PNG.
 		if ( 'image/png' === $mime ) {
 			imagepalettetotruecolor( $image );
 			imagealphablending( $image, true );
@@ -495,18 +512,18 @@ class Cetus_MO_Optimizer {
 	}
 
 	// -------------------------------------------------------------------------
-	// Sostituzione URL frontend (src / srcset / content)
+	// Front-end URL swapping: src, srcset and content
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Filtra l'array restituito da wp_get_attachment_image_src() sostituendo
-	 * l'URL del file originale con quello del formato ottimizzato, se esiste
-	 * su disco. Viene chiamato solo nel contesto frontend (non in admin).
+	 * Filters the array wp_get_attachment_image_src() returns, swapping the URL
+	 * of the original for the optimised one when that file is actually on disk.
+	 * Front end only: the admin keeps the originals.
 	 *
-	 * @param array<mixed>|false $image         Array [url, width, height, is_intermediate] o false.
-	 * @param int|string         $attachment_id ID allegato (cast a int internamente).
-	 * @param string|int[]       $size          Dimensione richiesta.
-	 * @param bool               $icon          True se WordPress sta cercando un'icona di tipo MIME.
+	 * @param array<mixed>|false $image         [url, width, height, is_intermediate], or false.
+	 * @param int|string         $attachment_id Attachment id, cast to int internally.
+	 * @param string|int[]       $size          The size requested.
+	 * @param bool               $icon          True when WordPress is asking for a MIME type icon.
 	 * @return array<mixed>|false
 	 */
 	public function swap_src_to_optimized( $image, $attachment_id, $size, bool $icon ) {
@@ -515,7 +532,7 @@ class Cetus_MO_Optimizer {
 			return $image;
 		}
 
-		// Non intervenire sulle icone o su risultati non validi.
+		// Leave icons alone, and anything that is not a usable result.
 		if ( $icon || ! is_array( $image ) || empty( $image[0] ) ) {
 			return $image;
 		}
@@ -529,14 +546,14 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Filtra l'array restituito da wp_calculate_image_srcset() sostituendo
-	 * ogni URL originale con la versione ottimizzata, se il file esiste su disco.
+	 * Filters the array wp_calculate_image_srcset() returns, swapping every
+	 * original URL for the optimised one when that file is on disk.
 	 *
-	 * @param array<int, array{url: string, descriptor: string, value: int}>|false $sources    Voci srcset indicizzate per larghezza.
-	 * @param array<int>                                                           $size_array [width, height] dell'immagine corrente.
-	 * @param string                                                               $image_src  URL della src originale.
-	 * @param array<string, mixed>                                                 $image_meta Metadati allegato.
-	 * @param int                                                                  $attachment_id ID allegato.
+	 * @param array<int, array{url: string, descriptor: string, value: int}>|false $sources    srcset entries, keyed by width.
+	 * @param array<int>                                                           $size_array [width, height] of the current image.
+	 * @param string                                                               $image_src  URL of the original src.
+	 * @param array<string, mixed>                                                 $image_meta Attachment metadata.
+	 * @param int                                                                  $attachment_id Attachment id.
 	 * @return array<int, array{url: string, descriptor: string, value: int}>|false
 	 */
 	public function swap_srcset_to_optimized( $sources, array $size_array, string $image_src, array $image_meta, int $attachment_id ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
@@ -559,14 +576,14 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Filtra il contenuto HTML dei post (via wp_filter_content_tags) sostituendo
-	 * gli attributi src e srcset dei tag <img> con i formati ottimizzati.
+	 * Filters post content, through wp_filter_content_tags, swapping the src and
+	 * srcset attributes of <img> tags to the optimised formats.
 	 *
-	 * Questo cattura le immagini inserite nell'editor che WordPress non passa
-	 * attraverso wp_get_attachment_image_src (es. immagini in blocchi custom,
-	 * HTML diretto nel contenuto).
+	 * This catches the images inserted in the editor that WordPress does not put
+	 * through wp_get_attachment_image_src: images inside custom blocks, and raw
+	 * HTML written into the content.
 	 *
-	 * @param string $content Contenuto HTML del post.
+	 * @param string $content The post HTML.
 	 * @return string
 	 */
 	public function swap_content_image_urls( string $content ): string {
@@ -574,8 +591,8 @@ class Cetus_MO_Optimizer {
 			return $content;
 		}
 
-		// Sostituisce ogni URL di immagine supportata che compare come src="…"
-		// o in un srcset="…" con la versione ottimizzata, se il file esiste.
+		// Swap every supported image URL appearing in a src="..." or inside a
+		// srcset="..." for its optimised version, when that file exists.
 		return preg_replace_callback(
 			'/(src|srcset)=["\']([^"\']+)["\']/i',
 			function ( array $matches ): string {
@@ -583,7 +600,7 @@ class Cetus_MO_Optimizer {
 				$value = $matches[2];
 
 				if ( 'srcset' === strtolower( $attr ) ) {
-					// srcset contiene più voci separate da virgole: "url1 1x, url2 2x".
+					// A srcset holds comma-separated entries: "url1 1x, url2 2x".
 					$parts     = array_map(
 						function ( string $part ): string {
 							$tokens = preg_split( '/\s+/', trim( $part ), 2 );
@@ -610,14 +627,15 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Sanitizzazione finale del markup HTML (the_content + post_thumbnail_html).
+	 * The final pass over the HTML, on the_content and post_thumbnail_html.
 	 *
-	 * Esegue due passate:
-	 * 1. Sincronizza l'href del Lightbox (<a href>) con il formato del <img src> interno.
-	 * 2. Per ogni <img>: allinea src e srcset allo stesso formato ottimizzato e
-	 *    fa rollback a .jpg/.png per gli URL che non esistono su disco.
+	 * Two passes:
+	 * 1. Bring the lightbox href (<a href>) into line with the format of the
+	 *    <img src> inside it, so clicking an image does not load a different file.
+	 * 2. For each <img>, put src and srcset in the same optimised format, and roll
+	 *    back to .jpg or .png for any URL that is not on disk.
 	 *
-	 * @param string $html Markup HTML.
+	 * @param string $html The HTML markup.
 	 * @return string
 	 */
 	public function sanitize_optimized_urls( string $html ): string {
@@ -636,18 +654,18 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Rigenera il srcset mancante sull'immagine in evidenza.
+	 * Rebuilds a missing srcset on the featured image.
 	 *
-	 * Quando il tema modifica il src prima che wp_calculate_image_srcset() agisca,
-	 * WordPress non riesce a trovare l'allegato e restituisce false (nessun srcset).
-	 * Questo filtro lo ricostruisce leggendo _wp_attachment_metadata e verificando
-	 * l'esistenza di ogni file su disco.
+	 * When a theme rewrites the src before wp_calculate_image_srcset() runs,
+	 * WordPress cannot find the attachment and returns false, so there is no
+	 * srcset at all. This rebuilds it from _wp_attachment_metadata, checking that
+	 * each file is on disk before including it.
 	 *
-	 * @param string $html             HTML del tag <img> dell'immagine in evidenza.
-	 * @param int    $post_id          ID del post corrente.
-	 * @param int    $post_thumbnail_id ID allegato immagine in evidenza.
-	 * @param mixed  $size             Dimensione thumbnail richiesta.
-	 * @param mixed  $attr             Attributi aggiuntivi del tag img.
+	 * @param string $html              HTML of the featured image's <img> tag.
+	 * @param int    $post_id           Id of the current post.
+	 * @param int    $post_thumbnail_id Attachment id of the featured image.
+	 * @param mixed  $size              The thumbnail size requested.
+	 * @param mixed  $attr              Extra attributes on the img tag.
 	 * @return string
 	 */
 	public function rebuild_srcset_if_missing( string $html, int $post_id = 0, int $post_thumbnail_id = 0, $size = '', $attr = '' ): string { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
@@ -655,8 +673,9 @@ class Cetus_MO_Optimizer {
 			return $html;
 		}
 
-		// Usa l'ID allegato passato direttamente dal filtro post_thumbnail_html;
-		// fallback alla classe wp-image-{id} per altri contesti (es. the_content).
+		// Use the attachment id the post_thumbnail_html filter hands over, and fall
+		// back to the wp-image-{id} class for the other contexts, the_content among
+		// them, where no id arrives.
 		if ( $post_thumbnail_id > 0 ) {
 			$attachment_id = $post_thumbnail_id;
 		} elseif ( preg_match( '/\bwp-image-(\d+)\b/i', $html, $id_m ) ) {
@@ -737,13 +756,14 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Passata 1: sincronizza l'href dei link Lightbox (<a href>) con il formato
-	 * ottimizzato del <img src> interno. Verifica l'esistenza su disco prima
-	 * di aggiornare l'href; se il file non esiste fa rollback all'originale.
+	 * Pass 1: brings the href of a lightbox link (<a href>) into line with the
+	 * optimised format of the <img src> inside it. The file is checked on disk
+	 * before the href is changed, and rolled back to the original when it is not
+	 * there: a lightbox opening a 404 is worse than one opening a JPG.
 	 *
-	 * @param string $html        Markup HTML.
-	 * @param string $uploads_url URL base uploads.
-	 * @param string $uploads_dir Path assoluto uploads.
+	 * @param string $html        The HTML markup.
+	 * @param string $uploads_url Base uploads URL.
+	 * @param string $uploads_dir Absolute uploads path.
 	 * @return string
 	 */
 	private function sync_lightbox_hrefs( string $html, string $uploads_url, string $uploads_dir ): string {
@@ -753,7 +773,7 @@ class Cetus_MO_Optimizer {
 				$a_attrs = $m[1];
 				$inner   = $m[2];
 
-				// Processa solo se l'ancora contiene un'immagine.
+				// Only anchors that actually wrap an image.
 				if ( ! preg_match( '/<img\s/i', $inner ) ) {
 					return $m[0];
 				}
@@ -763,7 +783,7 @@ class Cetus_MO_Optimizer {
 					return $m[0];
 				}
 
-				// Aggiorna l'href solo se punta a un file immagine.
+				// Only rewrite the href when it points at an image file.
 				$new_a_attrs = preg_replace_callback(
 					'/\bhref="([^"]+)"/i',
 					function ( array $hm ) use ( $uploads_url, $uploads_dir ): string {
@@ -783,13 +803,14 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Passata 2: per ogni tag <img> allinea src, srcset e data-src allo stesso
-	 * formato ottimizzato. Se srcset è già ottimizzato ma src è ancora .jpg,
-	 * sincronizza src. Fa rollback su ogni URL ottimizzato che non esiste su disco.
+	 * Pass 2: for each <img>, puts src, srcset and data-src into the same
+	 * optimised format. Where the srcset is already optimised but the src is
+	 * still a .jpg, the src is brought into line. Any optimised URL with no file
+	 * on disk is rolled back.
 	 *
-	 * @param string $html        Markup HTML.
-	 * @param string $uploads_url URL base uploads.
-	 * @param string $uploads_dir Path assoluto uploads.
+	 * @param string $html        The HTML markup.
+	 * @param string $uploads_url Base uploads URL.
+	 * @param string $uploads_dir Absolute uploads path.
 	 * @return string
 	 */
 	private function sync_img_attributes( string $html, string $uploads_url, string $uploads_dir ): string {
@@ -802,7 +823,7 @@ class Cetus_MO_Optimizer {
 				$srcset   = preg_match( '/\bsrcset="([^"]+)"/i', $attrs, $ssm ) ? $ssm[1] : '';
 				$data_src = preg_match( '/\bdata-src="([^"]+)"/i', $attrs, $dsm ) ? $dsm[1] : '';
 
-				// --- Processa srcset ---
+				// --- srcset ---
 				$new_srcset = $srcset;
 				if ( $srcset ) {
 					$parts      = array_map(
@@ -819,11 +840,12 @@ class Cetus_MO_Optimizer {
 					$new_srcset = implode( ', ', $parts );
 				}
 
-				// --- Processa src ---
+				// --- src ---
 				$new_src = $src ? $this->best_url( $src, $uploads_url, $uploads_dir ) : $src;
 
-				// Se srcset contiene già URL ottimizzati ma src è ancora .jpg/.png,
-				// sincronizza src al formato ottimizzato (se il file esiste su disco).
+				// When the srcset already holds optimised URLs but the src is still
+				// a .jpg or .png, bring the src into line, provided the file is
+				// actually on disk.
 				if ( $new_src && $new_srcset
 					&& preg_match( '/\.(webp|avif)/i', $new_srcset )
 					&& preg_match( '/\.(jpe?g|png|gif)$/i', $new_src )
@@ -834,10 +856,10 @@ class Cetus_MO_Optimizer {
 					}
 				}
 
-				// --- Processa data-src (lazy loading) ---
+				// --- data-src, for lazy loading ---
 				$new_data_src = $data_src ? $this->best_url( $data_src, $uploads_url, $uploads_dir ) : $data_src;
 
-				// --- Aggiorna gli attributi solo se necessario ---
+				// --- Rewrite the attributes only where something changed ---
 				if ( $new_src !== $src ) {
 					$attrs = preg_replace( '/\bsrc="[^"]*"/i', 'src="' . esc_attr( $new_src ) . '"', $attrs );
 				}
@@ -857,14 +879,15 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Restituisce il miglior URL per un'immagine verificando l'esistenza su disco:
-	 * - Se l'URL è un originale (.jpg/.png/.gif): restituisce l'URL ottimizzato se esiste.
-	 * - Se l'URL è già ottimizzato (.webp/.avif): verifica che esista; se no, rollback.
-	 * - Qualsiasi altro URL: restituisce invariato.
+	 * Returns the best URL for an image, checking the filesystem as it goes:
+	 * - an original (.jpg, .png, .gif) becomes the optimised URL when that exists
+	 * - an already optimised URL (.webp, .avif) is kept when the file is there,
+	 *   and rolled back when it is not
+	 * - anything else is returned untouched
 	 *
-	 * @param string $url         URL da processare.
-	 * @param string $uploads_url URL base uploads.
-	 * @param string $uploads_dir Path assoluto uploads.
+	 * @param string $url         The URL to process.
+	 * @param string $uploads_url Base uploads URL.
+	 * @param string $uploads_dir Absolute uploads path.
 	 * @return string
 	 */
 	private function best_url( string $url, string $uploads_url, string $uploads_dir ): string {
@@ -880,13 +903,13 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Verifica che un URL .webp/.avif esista su disco.
-	 * Se non esiste, tenta il rollback all'estensione originale (.jpg/.jpeg/.png/.gif).
-	 * Restituisce l'URL invariato se non viene trovato nessun file valido.
+	 * Checks that a .webp or .avif URL is actually on disk, and rolls back to the
+	 * original extension (.jpg, .jpeg, .png, .gif) when it is not. If no valid
+	 * file is found either way, the URL is returned unchanged.
 	 *
-	 * @param string $url         URL ottimizzato da verificare.
-	 * @param string $uploads_url URL base uploads.
-	 * @param string $uploads_dir Path assoluto uploads.
+	 * @param string $url         The optimised URL to check.
+	 * @param string $uploads_url Base uploads URL.
+	 * @param string $uploads_dir Absolute uploads path.
 	 * @return string
 	 */
 	private function sanitize_single_optimized_url( string $url, string $uploads_url, string $uploads_dir ): string {
@@ -917,27 +940,27 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Dato un URL assoluto di un'immagine originale (JPG/PNG/GIF), restituisce
-	 * l'URL del file ottimizzato (WebP o AVIF) se il file corrispondente esiste
-	 * nella cartella uploads. Restituisce null se non c'è nulla da sostituire.
+	 * Given the absolute URL of an original image (JPG, PNG, GIF), returns the
+	 * URL of the optimised file (WebP or AVIF) when that file exists in the
+	 * uploads folder, and null when there is nothing to swap in.
 	 *
-	 * @param string $original_url URL assoluto del file originale.
-	 * @return string|null URL ottimizzato, o null se il file non esiste.
+	 * @param string $original_url Absolute URL of the original file.
+	 * @return string|null The optimised URL, or null when the file is not there.
 	 */
 	private function get_optimized_url( string $original_url ): ?string {
-		// Solo per formati sorgente supportati.
+		// Supported source formats only.
 		if ( ! preg_match( '/\.(jpe?g|png|gif)(\?.*)?$/i', $original_url ) ) {
 			return null;
 		}
 
-		// Rimuove eventuali query string prima di trovare il path fisico.
+		// Strip any query string before working out the path on disk.
 		$url_clean = strtok( $original_url, '?' );
 
 		$upload_dir  = wp_upload_dir();
 		$uploads_url = trailingslashit( $upload_dir['baseurl'] );
 		$uploads_dir = trailingslashit( $upload_dir['basedir'] );
 
-		// L'URL deve appartenere alla cartella uploads di questo sito.
+		// The URL has to belong to this site's uploads folder.
 		if ( false === strpos( $url_clean, $uploads_url ) ) {
 			return null;
 		}
@@ -955,12 +978,12 @@ class Cetus_MO_Optimizer {
 	}
 
 	// -------------------------------------------------------------------------
-	// Analisi file orfani
+	// The orphaned-file scan
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Scansiona la cartella uploads alla ricerca di file immagine non registrati
-	 * nel database di WordPress.
+	 * Walks the uploads folder looking for image files that are not registered in
+	 * the WordPress database.
 	 *
 	 * @return array{count: int, files: array<string>, total_bytes: int}
 	 */
@@ -968,7 +991,7 @@ class Cetus_MO_Optimizer {
 		$upload_dir = wp_upload_dir();
 		$base_dir   = trailingslashit( $upload_dir['basedir'] );
 
-		// Recupera tutti i percorsi dei file registrati come allegati.
+		// Every path registered as an attachment.
 		$registered = $this->get_all_registered_paths();
 
 		$orphans     = [];
@@ -994,7 +1017,7 @@ class Cetus_MO_Optimizer {
 			$full_path = wp_normalize_path( $file_info->getRealPath() );
 			$relative  = str_replace( wp_normalize_path( $base_dir ), '', $full_path );
 
-			// Il file è orfano se non compare in nessun metadato registrato.
+			// A file is orphaned when no registered metadata mentions it.
 			if ( ! in_array( $relative, $registered, true ) ) {
 				$orphans[]    = $full_path;
 				$total_bytes += (int) $file_info->getSize();
@@ -1009,8 +1032,8 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Costruisce la lista di tutti i percorsi (relativi a uploads/) dei file
-	 * associati ad allegati nel database.
+	 * Builds the list of every path, relative to uploads/, that belongs to an
+	 * attachment in the database.
 	 *
 	 * @return array<string>
 	 */
@@ -1056,8 +1079,8 @@ class Cetus_MO_Optimizer {
 				continue;
 			}
 
-			// Normalizza meta['file'] a path relativo a base_dir, gestendo sia path
-			// relativi che assoluti (alcuni hosting memorizzano il path assoluto).
+			// Normalise meta['file'] to a path relative to base_dir, coping with
+			// both forms: some hosts store an absolute path there.
 			$main_relative = '';
 			if ( ! empty( $meta['file'] ) ) {
 				$main_normalized = wp_normalize_path( $meta['file'] );
@@ -1079,17 +1102,17 @@ class Cetus_MO_Optimizer {
 	}
 
 	// -------------------------------------------------------------------------
-	// Hook: anteprime native in JPG nella Libreria Media
+	// Hook: native JPG previews in the media library
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Forza il ritorno dell'URL dell'immagine originale JPG/PNG quando viene
-	 * richiesta un'anteprima dalla Libreria Media, evitando icone rotte.
+	 * Keeps the media library on the original JPG or PNG URL when it asks for a
+	 * preview, so the admin never shows a broken thumbnail.
 	 *
-	 * @param array<mixed>|false $image         Array [url, width, height, is_intermediate] o false.
-	 * @param int                $attachment_id ID allegato.
-	 * @param string|int[]       $size          Dimensione richiesta.
-	 * @param bool               $icon          Se true, WordPress sta cercando un'icona.
+	 * @param array<mixed>|false $image         [url, width, height, is_intermediate], or false.
+	 * @param int                $attachment_id Attachment id.
+	 * @param string|int[]       $size          The size requested.
+	 * @param bool               $icon          True when WordPress is asking for an icon.
 	 * @return array<mixed>|false
 	 */
 	public function force_jpg_thumbnail( $image, int $attachment_id, $size, bool $icon ) {
@@ -1097,7 +1120,7 @@ class Cetus_MO_Optimizer {
 			return $image;
 		}
 
-		// Se l'URL punta già a un file JPG/PNG, non serve intervenire.
+		// Already pointing at a JPG or PNG: nothing to do.
 		if ( is_array( $image ) && isset( $image[0] ) ) {
 			$url = (string) $image[0];
 			if ( preg_match( '/\.(jpe?g|png|gif)$/i', $url ) ) {
@@ -1109,28 +1132,28 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Assicura che i dati JS per la Libreria Media usino anteprime JPG native
-	 * e non puntino a file WebP/AVIF che il browser potrebbe non riconoscere
-	 * nell'interfaccia di WordPress.
+	 * Makes sure the JS data behind the media library uses the native JPG
+	 * previews, rather than WebP or AVIF files a browser might not render in the
+	 * WordPress interface.
 	 *
-	 * @param array<string, mixed> $response      Dati JSON per il media item.
-	 * @param WP_Post              $attachment     Post dell'allegato.
-	 * @param array<string>|false  $meta           Metadati allegato.
+	 * @param array<string, mixed> $response   JSON data for the media item.
+	 * @param WP_Post              $attachment The attachment post.
+	 * @param array<string>|false  $meta       Attachment metadata.
 	 * @return array<string, mixed>
 	 */
 	public function force_js_thumbnail( array $response, WP_Post $attachment, $meta ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
-		// Nessuna modifica necessaria: WordPress utilizza già il file originale
-		// come base per le anteprime JS. Questo hook è predisposto per
-		// eventuali personalizzazioni future.
+		// Nothing to change: WordPress already builds the JS previews from the
+		// original file. The hook is registered so the behaviour is pinned rather
+		// than left to chance, and so there is somewhere to act if that changes.
 		return $response;
 	}
 
 	// -------------------------------------------------------------------------
-	// Statistiche libreria
+	// Library statistics
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Calcola le statistiche dello spazio occupato dalla libreria media.
+	 * Works out how much space the media library takes up, by format.
 	 *
 	 * @return array{total_bytes: int, webp_bytes: int, avif_bytes: int, original_bytes: int, files_count: int}
 	 */
@@ -1183,13 +1206,8 @@ class Cetus_MO_Optimizer {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Determina il formato di output in base alle impostazioni e alle capacità
-	 * del server. 'auto' sceglie AVIF se supportato, altrimenti WebP.
-	 *
-	 * @return string 'avif' | 'webp'
-	 */
-	/**
-	 * Indica se la conversione è disabilitata dall'utente (modalità "solo Alt Text").
+	 * Whether the user has turned conversion off, leaving the plugin in its
+	 * alt-text-only mode.
 	 *
 	 * @return bool
 	 */
@@ -1198,9 +1216,11 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Determina il formato di output corrente in base alle impostazioni e capacità del server.
+	 * Works out the current output format, from the settings and from what the
+	 * server can actually do. 'auto' picks AVIF where it is supported, and WebP
+	 * otherwise.
 	 *
-	 * @return string
+	 * @return string 'avif' | 'webp'
 	 */
 	public function resolve_format(): string {
 		$setting = get_option( 'cetus_media_format', 'auto' );
@@ -1213,20 +1233,20 @@ class Cetus_MO_Optimizer {
 			return 'webp';
 		}
 
-		// 'none' non dovrebbe arrivare qui, ma per sicurezza ritorna webp.
+		// 'none' should never reach this far, but return something valid anyway.
 		if ( 'none' === $setting ) {
 			return 'webp';
 		}
 
-		// 'auto': preferisce AVIF se disponibile.
+		// 'auto': prefer AVIF when it is available.
 		return $this->imagick_available( 'avif' ) ? 'avif' : 'webp';
 	}
 
 	/**
-	 * Costruisce il percorso del file di output sostituendo l'estensione.
+	 * Builds the output path by swapping the extension.
 	 *
-	 * @param string $source_path Percorso assoluto del file sorgente.
-	 * @param string $format      'webp' o 'avif'.
+	 * @param string $source_path Absolute path to the source file.
+	 * @param string $format      'webp' or 'avif'.
 	 * @return string
 	 */
 	public function build_output_path( string $source_path, string $format ): string {
@@ -1234,9 +1254,9 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Verifica se Imagick è disponibile e supporta il formato richiesto.
+	 * Whether Imagick is available and supports the format asked for.
 	 *
-	 * @param string $format 'webp' o 'avif'.
+	 * @param string $format 'webp' or 'avif'.
 	 * @return bool
 	 */
 	public function imagick_available( string $format = 'webp' ): bool {
@@ -1249,8 +1269,8 @@ class Cetus_MO_Optimizer {
 			return false;
 		}
 
-		// Per AVIF esegui un probe reale: alcune build di libheif dichiarano supporto
-		// ma scrivono 0 byte. Il risultato viene cachato per 24 ore.
+		// AVIF gets a real probe: some libheif builds report support and then write
+		// 0 bytes. The result is cached for 24 hours.
 		if ( 'avif' === $format ) {
 			return $this->probe_avif_encoding();
 		}
@@ -1259,17 +1279,11 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Testa la codifica AVIF effettiva generando un pixel 1×1 in memoria.
-	 * Cachea il risultato in un transient per evitare overhead ad ogni conversione.
+	 * Whether an image has an alpha channel, decided from the file header alone.
+	 * For a PNG that is the colour type byte, bit 2. The whole image is never
+	 * loaded into memory, which matters because this runs before the size check.
 	 *
-	 * @return bool
-	 */
-	/**
-	 * Controlla se un file immagine ha un canale alpha leggendo l'header del file.
-	 * Per i PNG usa i byte dell'header (color type bit 2); per WebP legge il chunk RIFF.
-	 * Non carica l'intera immagine in memoria.
-	 *
-	 * @param string $path Percorso assoluto del file sorgente.
+	 * @param string $path Absolute path to the source file.
 	 * @return bool
 	 */
 	private function source_has_alpha( string $path ): bool {
@@ -1281,23 +1295,28 @@ class Cetus_MO_Optimizer {
 		$mime = $info['mime'] ?? '';
 
 		if ( 'image/png' === $mime ) {
-			// Nel PNG l'header è sempre 8 byte di firma + 4 lunghezza + 4 "IHDR" + 4 width + 4 height + 1 bitdepth + 1 colortype
-			// Color type: 4 = grayscale+alpha, 6 = RGBA → bit 2 impostato = ha alpha.
-			// Legge 1 byte al byte 25 (color type) usando file_get_contents con offset,
-			// evitando fopen/fread/fclose non consentiti da WPCS.
+			// A PNG header is always 8 bytes of signature, 4 of length, 4 of "IHDR",
+			// 4 width, 4 height, 1 bit depth, then 1 colour type.
+			// Colour type 4 is greyscale plus alpha and 6 is RGBA, so bit 2 set
+			// means there is an alpha channel.
+			// That single byte at offset 25 is read through file_get_contents with
+			// an offset, because WPCS does not allow fopen, fread and fclose.
 			$chunk = file_get_contents( $path, false, null, 25, 1 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			if ( false === $chunk || '' === $chunk ) {
 				return false;
 			}
 			$color_type = ord( $chunk );
-			return (bool) ( $color_type & 4 ); // bit 2 = alpha channel present.
+			return (bool) ( $color_type & 4 ); // Bit 2 set means an alpha channel.
 		}
 
 		return false;
 	}
 
 	/**
-	 * Verifica se il server supporta la codifica AVIF tramite una conversione di prova.
+	 * Whether the server can really encode AVIF, decided by encoding a 1x1 pixel
+	 * in memory rather than by asking. Some builds claim support and then write
+	 * nothing. The answer is cached in a transient, so the probe does not run on
+	 * every conversion.
 	 *
 	 * @return bool
 	 */
@@ -1326,7 +1345,7 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Verifica se GD supporta la creazione di immagini WebP.
+	 * Whether GD can write WebP.
 	 *
 	 * @return bool
 	 */
@@ -1340,7 +1359,7 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Verifica se GD supporta AVIF (richiede PHP >= 8.1 e libavif).
+	 * Whether GD can write AVIF, which needs PHP 8.1 or later and libavif.
 	 *
 	 * @return bool
 	 */
@@ -1354,7 +1373,7 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Restituisce la qualità WebP configurata dall'utente (1-100).
+	 * The WebP quality the user configured, 1 to 100.
 	 *
 	 * @return int
 	 */
@@ -1363,7 +1382,7 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Restituisce la qualità AVIF configurata dall'utente (1-100).
+	 * The AVIF quality the user configured, 1 to 100.
 	 *
 	 * @return int
 	 */
@@ -1372,9 +1391,9 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Verifica se un allegato è stato escluso dall'utente tramite il meta box.
+	 * Whether the user excluded this attachment from the meta box.
 	 *
-	 * @param int $attachment_id ID allegato.
+	 * @param int $attachment_id Attachment id.
 	 * @return bool
 	 */
 	public function is_attachment_excluded( int $attachment_id ): bool {
@@ -1382,9 +1401,9 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Aggiunge una voce al log delle conversioni (max 200 voci, LIFO).
+	 * Adds an entry to the conversion log, newest first, capped at 200.
 	 *
-	 * @param array{attachment_id: int, filename: string, format: string, bytes_saved: int, status: string} $entry Dati della voce.
+	 * @param array{attachment_id: int, filename: string, format: string, bytes_saved: int, status: string} $entry The entry data.
 	 * @return void
 	 */
 	public static function add_log_entry( array $entry ): void {
@@ -1397,8 +1416,8 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Conta le immagini nella libreria che non hanno ancora un file convertito
-	 * nel formato di output corrente (usato per mostrare il contatore "Da convertire").
+	 * Counts the library images with no converted file in the current output
+	 * format yet. It is what the "to convert" counter shows.
 	 *
 	 * @return int
 	 */
@@ -1433,9 +1452,12 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
-	 * Elimina tutti i file WebP e AVIF generati dal plugin nella cartella uploads.
-	 * Non tocca mai i file originali JPG/PNG/GIF.
-	 * Azzera il log e il contatore cumulativo dei risparmi.
+	 * Deletes every WebP and AVIF file this plugin generated under uploads, and
+	 * clears the log and the cumulative savings counter.
+	 *
+	 * It never touches an original JPG, PNG or GIF, and it never touches a WebP
+	 * or AVIF that is itself a registered attachment: those were uploaded as
+	 * such, so they are somebody's originals rather than our output.
 	 *
 	 * @return array{deleted: int, errors: int}
 	 */
@@ -1451,8 +1473,8 @@ class Cetus_MO_Optimizer {
 			return $counts;
 		}
 
-		// Recupera i percorsi assoluti di tutti i file WebP/AVIF registrati come
-		// allegati originali nel database, per non eliminarli.
+		// Collect the absolute paths of every WebP and AVIF registered as an
+		// attachment in the database, so that none of them is deleted.
 		$original_webp_avif = [];
 		$query              = new WP_Query(
 			[
@@ -1488,7 +1510,7 @@ class Cetus_MO_Optimizer {
 
 			$path = $file_info->getRealPath();
 
-			// Salta i file originali registrati nel database WordPress.
+			// Skip the originals registered in the WordPress database.
 			if ( isset( $original_webp_avif[ $path ] ) ) {
 				continue;
 			}

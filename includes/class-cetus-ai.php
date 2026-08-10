@@ -1,10 +1,15 @@
 <?php
 /**
- * Integrazione AI Multi-Provider per la generazione automatica di Alt Text.
+ * Multi-provider AI integration, for generating alt text automatically.
  *
- * Supporta Google Gemini (v1beta) e OpenAI (gpt-4o-mini) con fallback
- * automatico su errori 429 (Quota Exceeded). Salva il testo generato
- * nativamente come '_wp_attachment_image_alt' nel database.
+ * Supports Google Gemini (v1beta) and OpenAI (gpt-4o-mini), with automatic
+ * fallback between them on a 429 (quota exceeded). The generated text is saved
+ * natively as '_wp_attachment_image_alt', so it stays usable if this plugin is
+ * ever removed.
+ *
+ * The image is sent straight from the site to the provider whose key the
+ * administrator entered. Nothing passes through a server of ours, and nothing
+ * is sent until somebody starts a conversion.
  *
  * @package CetusMediaOptimizer
  */
@@ -23,30 +28,30 @@ if ( class_exists( 'Cetus_MO_AI' ) ) {
 class Cetus_MO_AI {
 
 	/**
-	 * Endpoint Gemini (v1beta).
+	 * The Gemini endpoint (v1beta).
 	 *
 	 * @var string
 	 */
 	private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 	/**
-	 * Endpoint OpenAI.
+	 * The OpenAI endpoint.
 	 *
 	 * @var string
 	 */
 	private const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
 	/**
-	 * Modello OpenAI da utilizzare.
+	 * Which OpenAI model to use.
 	 *
 	 * @var string
 	 */
 	private const OPENAI_MODEL = 'gpt-4o-mini';
 
 	/**
-	 * Mappa prefisso-locale → nome lingua in inglese per il prompt AI.
-	 * L'AI riceve sempre il nome della lingua in inglese per massima compatibilità
-	 * con i modelli (che sono addestrati prevalentemente su testi in inglese).
+	 * Locale prefix to English language name, for the AI prompt.
+	 * The model is always told the language in English, because that is what
+	 * these models handle most reliably, whatever language the output is in.
 	 *
 	 * @var array<string, string>
 	 */
@@ -76,17 +81,17 @@ class Cetus_MO_AI {
 	];
 
 	// -------------------------------------------------------------------------
-	// Prompt dinamico internazionale
+	// The dynamic, international prompt
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Costruisce il prompt da inviare all'AI per la generazione dell'alt text.
+	 * Builds the prompt sent to the model to generate the alt text.
 	 *
-	 * Priorità:
-	 *   1. Prompt personalizzato dell'utente (se impostato in Step 2).
-	 *   2. Lingua scelta dall'utente nel selettore di Step 2.
-	 *   3. Auto-detect dalla locale WordPress corrente.
-	 *   4. Inglese come lingua di ultima istanza.
+	 * In order of precedence:
+	 *   1. The custom prompt, when the user set one in Step 2.
+	 *   2. The language the user picked in the Step 2 selector.
+	 *   3. The current WordPress locale.
+	 *   4. English, as the last resort.
 	 *
 	 * @return string
 	 */
@@ -110,11 +115,11 @@ class Cetus_MO_AI {
 	}
 
 	/**
-	 * Converte una locale WordPress (es. 'it_IT', 'fr_FR', 'zh_CN') nel codice
-	 * lingua a 2 caratteri usato in LANGUAGE_MAP.
+	 * Turns a WordPress locale ('it_IT', 'fr_FR', 'zh_CN') into the two-letter
+	 * language code LANGUAGE_MAP is keyed by.
 	 *
-	 * @param string $locale Locale WordPress (es. 'it_IT').
-	 * @return string Codice lingua ISO 639-1 (es. 'it'), 'en' se non riconosciuto.
+	 * @param string $locale WordPress locale, 'it_IT' for example.
+	 * @return string ISO 639-1 code such as 'it', or 'en' when unrecognised.
 	 */
 	private function locale_to_lang_code( string $locale ): string {
 		$prefix = strtolower( substr( $locale, 0, 2 ) );
@@ -122,16 +127,16 @@ class Cetus_MO_AI {
 	}
 
 	// -------------------------------------------------------------------------
-	// Generazione Alt Text (entry point pubblico)
+	// Alt text generation, the public entry point
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Genera e salva l'alt text per un allegato WordPress.
+	 * Generates and saves the alt text for a WordPress attachment.
 	 *
-	 * Utilizza il provider selezionato nelle impostazioni, con fallback
-	 * automatico all'altro provider in caso di errore 429.
+	 * Uses the provider chosen in the settings, falling back to the other one
+	 * automatically on a 429.
 	 *
-	 * @param int $attachment_id ID dell'allegato WordPress.
+	 * @param int $attachment_id The WordPress attachment id.
 	 * @return array{success: bool, alt_text: string, provider_used: string, message: string}
 	 */
 	public function generate_and_save_alt_text( int $attachment_id ): array {
@@ -148,7 +153,7 @@ class Cetus_MO_AI {
 			return $result;
 		}
 
-		// Legge e codifica l'immagine in Base64.
+		// Read the image and encode it as Base64.
 		$image_data = $this->encode_image( $image_path );
 		if ( null === $image_data ) {
 			$result['message'] = 'Impossibile leggere il file immagine.';
@@ -159,7 +164,7 @@ class Cetus_MO_AI {
 		$primary_provider = get_option( 'cetus_media_ai_provider', 'gemini' );
 		$fallback_enabled = '1' === get_option( 'cetus_media_ai_fallback', '1' );
 
-		// Tentativo con il provider primario.
+		// First attempt, with the primary provider.
 		[ $alt_text, $error_code, $error_msg ] = $this->call_provider(
 			$primary_provider,
 			$image_data,
@@ -168,7 +173,7 @@ class Cetus_MO_AI {
 
 		$provider_used = $primary_provider;
 
-		// Fallback automatico su errore 429.
+		// Automatic fallback on a 429.
 		if ( null === $alt_text && 429 === $error_code && $fallback_enabled ) {
 			$fallback_provider = ( 'gemini' === $primary_provider ) ? 'openai' : 'gemini';
 
@@ -204,22 +209,22 @@ class Cetus_MO_AI {
 	}
 
 	// -------------------------------------------------------------------------
-	// Dispatcher provider
+	// Provider dispatch
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Chiama il provider specificato e restituisce il risultato.
+	 * Calls the given provider and returns its result.
 	 *
 	 * @param string $provider   'gemini' | 'openai'.
-	 * @param string $image_data Immagine codificata in Base64.
-	 * @param string $mime_type  MIME type dell'immagine (es. 'image/jpeg').
+	 * @param string $image_data The image, Base64 encoded.
+	 * @param string $mime_type  The image MIME type, 'image/jpeg' for example.
 	 * @return array{0: string|null, 1: int|null, 2: string} [alt_text, http_code, error_message]
 	 */
 	private function call_provider( string $provider, string $image_data, string $mime_type ): array {
 		return match ( $provider ) {
 			'gemini' => $this->call_gemini( $image_data, $mime_type ),
 			'openai' => $this->call_openai( $image_data, $mime_type ),
-			default  => [ null, null, sprintf( 'Provider "%s" non riconosciuto.', esc_html( $provider ) ) ],
+			default  => [ null, null, sprintf( 'Provider "%s" not recognised.', esc_html( $provider ) ) ],
 		};
 	}
 
@@ -228,10 +233,10 @@ class Cetus_MO_AI {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Chiama l'API Google Gemini per generare l'alt text.
+	 * Calls the Google Gemini API to generate the alt text.
 	 *
-	 * @param string $image_data Immagine in Base64.
-	 * @param string $mime_type  MIME type.
+	 * @param string $image_data The image, Base64 encoded.
+	 * @param string $mime_type  The image MIME type.
 	 * @return array{0: string|null, 1: int|null, 2: string}
 	 */
 	private function call_gemini( string $image_data, string $mime_type ): array {
@@ -298,10 +303,10 @@ class Cetus_MO_AI {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Chiama l'API OpenAI (gpt-4o-mini) per generare l'alt text.
+	 * Calls the OpenAI API (gpt-4o-mini) to generate the alt text.
 	 *
-	 * @param string $image_data Immagine in Base64.
-	 * @param string $mime_type  MIME type.
+	 * @param string $image_data The image, Base64 encoded.
+	 * @param string $mime_type  The image MIME type.
 	 * @return array{0: string|null, 1: int|null, 2: string}
 	 */
 	private function call_openai( string $image_data, string $mime_type ): array {
@@ -370,14 +375,14 @@ class Cetus_MO_AI {
 	}
 
 	// -------------------------------------------------------------------------
-	// Validazione chiavi API
+	// API key validation
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Verifica la validità di una chiave API effettuando una chiamata di test.
+	 * Checks an API key by making one test call.
 	 *
 	 * @param string $provider 'gemini' | 'openai'.
-	 * @param string $api_key  Chiave da testare.
+	 * @param string $api_key  The key to test.
 	 * @return array{valid: bool, message: string}
 	 */
 	public function validate_api_key( string $provider, string $api_key ): array {
@@ -389,7 +394,7 @@ class Cetus_MO_AI {
 		}
 
 		if ( 'gemini' === $provider ) {
-			// Formato atteso: AIzaSy... (39 caratteri).
+			// Expected shape: AIzaSy... , 39 characters.
 			if ( ! preg_match( '/^AIzaSy[A-Za-z0-9_-]{33}$/', $api_key ) ) {
 				return [
 					'valid'   => false,
@@ -399,7 +404,7 @@ class Cetus_MO_AI {
 		}
 
 		if ( 'openai' === $provider ) {
-			// Formato atteso: sk-... o sk-proj-...
+			// Expected shape: sk-... or sk-proj-...
 			if ( ! preg_match( '/^sk-/', $api_key ) ) {
 				return [
 					'valid'   => false,
@@ -419,13 +424,13 @@ class Cetus_MO_AI {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Legge il file immagine e lo restituisce codificato in Base64.
+	 * Reads the image file and returns it Base64 encoded.
 	 *
-	 * @param string $path Percorso assoluto del file.
-	 * @return string|null Null se il file non è leggibile o supera 20 MB.
+	 * @param string $path Absolute path to the file.
+	 * @return string|null Null when the file cannot be read, or exceeds 20 MB.
 	 */
 	private function encode_image( string $path ): ?string {
-		// Limite di 20 MB per le API vision.
+		// The vision APIs cap the payload at 20 MB.
 		if ( filesize( $path ) > 20 * 1024 * 1024 ) {
 			return null;
 		}
@@ -439,10 +444,10 @@ class Cetus_MO_AI {
 	}
 
 	/**
-	 * Restituisce il MIME type di un file immagine in modo sicuro.
+	 * Returns an image file's MIME type, safely.
 	 *
-	 * @param string $path Percorso assoluto del file.
-	 * @return string MIME type (default 'image/jpeg').
+	 * @param string $path Absolute path to the file.
+	 * @return string The MIME type, defaulting to 'image/jpeg'.
 	 */
 	private function get_image_mime( string $path ): string {
 		$info = wp_check_filetype( $path );

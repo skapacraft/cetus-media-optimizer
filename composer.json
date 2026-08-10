@@ -33,7 +33,6 @@
   "scripts": {
     "phpcs": "phpcs --standard=phpcs.xml.dist",
     "phpcbf": "phpcbf --standard=phpcs.xml.dist",
-    "pot": "wp i18n make-pot . languages/cetus-media-optimizer.pot --domain=cetus-media-optimizer --exclude=vendor,node_modules",
     "lint": [
       "@phpcs"
     ],

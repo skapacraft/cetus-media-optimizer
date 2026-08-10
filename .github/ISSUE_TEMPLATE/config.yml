@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/skapacraft/cetus-media-optimizer/security/advisories/new
+    about: Report it privately here, never in a public issue. API keys are involved.
+  - name: Support forum
+    url: https://wordpress.org/support/plugin/cetus-media-optimizer/
+    about: Questions about installing, configuring or using the plugin.
+  - name: Documentation
+    url: https://github.com/skapacraft/cetus-media-optimizer/wiki
+    about: The wiki, for the longer explanations.

@@ -4,12 +4,59 @@ All notable changes to **Cetus Image Converter & AI Alt Text** are documented in
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] – 2026-07-26
+## [Unreleased]
+
+### Fixed
+- The README claimed telemetry was "opt-in only and currently a stub: no data is
+  sent". The plugin requires `sentry/sentry` and ships a working Sentry
+  integration, and the release workflow substitutes a real DSN, so the released
+  plugin does send crash reports when an administrator opts in. `readme.txt`
+  disclosed this correctly under **External Services** all along; it was the
+  README, the page most people read before installing, that did not. It now
+  says exactly what leaves the site, what is stripped first, and how to verify
+  it.
+- The plugin header credited `LivQ` as author while the README, `composer.json`
+  and the product itself say SkapaCraft. Two references to a "LivQ server" in
+  `readme.txt` went the same way.
+- `phpcs.xml.dist` held a raw `&` in its description, which made the ruleset
+  invalid XML. PHPCS had been refusing to run from it.
+- Two orphaned doc comments in `class-cetus-optimizer.php`: one describing
+  `resolve_format()` sat on top of `conversion_disabled()`, and one describing
+  `probe_avif_encoding()` sat on top of `source_has_alpha()`.
+
+### Changed
+- Comments are in English throughout. They were Italian across every `includes/`
+  class, the plugin bootstrap, `uninstall.php` and the deploy workflow, in a
+  public repository whose interface, readme and store listing are all English.
+- Em dashes are gone from the code, the readme and the configuration files.
+
+### Removed
+- The `languages/` folder, along with the POT job in the deploy workflow and the
+  `composer pot` script. The plugin never called `load_plugin_textdomain()` or
+  `load_textdomain()`, so nothing there was ever loaded: WordPress serves
+  translations for a WordPress.org plugin from `wp-content/languages/plugins/`,
+  fetched from translate.wordpress.org. The bundled catalogues were dead weight,
+  and had drifted badly, still naming a previous author and version 2.2.6.
+  `Domain Path` went with them, since the folder it pointed at is gone.
+
+### Added
+- `SECURITY.md` rewritten around private reporting through the Security tab
+  rather than email, and around what actually matters here: API key disclosure,
+  losing originals, and telemetry leaking more than it says. The old one
+  declared support for versions 1.5.x, which never existed.
+- `CONTRIBUTING.md` rewritten, `CODE_OF_CONDUCT.md`, and issue and pull request
+  templates.
+- Dependabot for Composer and the CI actions. Sentry is deliberately excluded
+  from the grouped updates: it is the only runtime dependency, and the only one
+  that talks to the network.
+
+## [1.0.1] - 2026-07-26
 
 ### Fixed
 
 - Minor fix.
-## [1.0.0] – 2026-07-05
+
+## [1.0.0] - 2026-07-05
 
 ### Added
 

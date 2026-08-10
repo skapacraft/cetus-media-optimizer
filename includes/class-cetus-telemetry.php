@@ -1,10 +1,11 @@
 <?php
 /**
- * Integrazione Sentry per il tracciamento anonimo degli errori PHP.
+ * Sentry integration, for anonymous reporting of PHP errors.
  *
- * Si attiva SOLO se l'amministratore ha abilitato esplicitamente l'opt-in
- * nelle impostazioni del plugin. Di default è sempre disattivata.
- * Nessun dato personale o IP viene mai trasmesso.
+ * It runs ONLY when the administrator has explicitly opted in from the plugin
+ * settings, and it is off by default. No personal data and no IP address is
+ * ever transmitted: see sanitize_event() below for what is stripped, and
+ * SECURITY.md for what counts as a failure of that promise.
  *
  * @package CetusMediaOptimizer
  */
@@ -14,22 +15,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Gestisce l'inizializzazione di Sentry e la privacy policy WP.
+ * Handles starting Sentry, and the WordPress privacy policy entry.
  */
 class Cetus_MO_Telemetry {
 
 	/**
-	 * DSN del progetto Sentry.
+	 * The Sentry project DSN.
 	 *
-	 * Sostituire con il proprio DSN prima del deploy.
-	 * NON committare mai il DSN reale in un repository pubblico.
-	 * In alternativa, definire la costante CETUS_MO_SENTRY_DSN in wp-config.php.
+	 * A placeholder that the release workflow substitutes at deploy time. NEVER
+	 * commit a real DSN to a public repository. A site can also define
+	 * CETUS_MO_SENTRY_DSN in wp-config.php to use its own project instead.
+	 *
+	 * A build made straight from this repository keeps the placeholder, so
+	 * init() returns before Sentry starts and nothing is ever sent.
 	 */
 	private const DSN = '%%SENTRY_DSN%%';
 
 	/**
-	 * Inizializza Sentry solo se l'utente ha fornito il consenso esplicito
-	 * e l'SDK è disponibile tramite Composer.
+	 * Starts Sentry, but only with explicit consent and only when the SDK is
+	 * present through Composer.
 	 *
 	 * @return void
 	 */
@@ -73,15 +77,19 @@ class Cetus_MO_Telemetry {
 	}
 
 	/**
-	 * Callback before_send: rimuove qualsiasi dato personale o sensibile
-	 * prima che l'evento venga trasmesso a Sentry.
+	 * The before_send callback: strips anything personal or sensitive before an
+	 * event leaves the site.
 	 *
-	 * @param \Sentry\Event     $event Evento originale.
-	 * @param \Sentry\EventHint $hint  Hint aggiuntivo (eccezione originale, ecc.).
+	 * It also discards events entirely when the stack trace does not pass
+	 * through this plugin's own files, so a fault in the theme or in another
+	 * plugin is never reported from here.
+	 *
+	 * @param \Sentry\Event     $event The original event.
+	 * @param \Sentry\EventHint $hint  Extra context, such as the original exception.
 	 * @return \Sentry\Event|null
 	 */
 	public static function sanitize_event( \Sentry\Event $event, \Sentry\EventHint $hint ): ?\Sentry\Event {
-		// Scarta eventi che non originano dai file del nostro plugin.
+		// Drop events that did not originate in this plugin's own files.
 		$plugin_dir = defined( 'CETUS_MO_DIR' ) ? CETUS_MO_DIR : '';
 		if ( $plugin_dir ) {
 			$from_plugin = false;
@@ -91,7 +99,7 @@ class Cetus_MO_Telemetry {
 					break;
 				}
 			}
-			// Controlla anche l'eccezione originale nello hint.
+			// Check the original exception in the hint as well.
 			if ( ! $from_plugin && isset( $hint->exception ) ) {
 				foreach ( $hint->exception->getTrace() as $trace_frame ) {
 					if ( isset( $trace_frame['file'] ) && str_starts_with( $trace_frame['file'], $plugin_dir ) ) {
@@ -135,7 +143,7 @@ class Cetus_MO_Telemetry {
 	}
 
 	/**
-	 * Controlla se l'amministratore ha abilitato il consenso.
+	 * Whether the administrator has given consent.
 	 *
 	 * @return bool
 	 */
@@ -144,8 +152,9 @@ class Cetus_MO_Telemetry {
 	}
 
 	/**
-	 * Registra il testo della privacy policy del plugin nella pagina
-	 * Privacy di WordPress (Strumenti → Privacy).
+	 * Registers the plugin's privacy policy text on the WordPress privacy page,
+	 * under Tools, Privacy. Whatever this plugin can send has to be stated where
+	 * a site's visitors are told about it, not only in the repository.
 	 *
 	 * @return void
 	 */
@@ -164,7 +173,7 @@ class Cetus_MO_Telemetry {
 			'p'      => [],
 		];
 
-		$content = '<h2>' . esc_html__( 'Cetus Image Converter & AI Alt Text — Error Telemetry', 'cetus-media-optimizer' ) . '</h2>';
+		$content = '<h2>' . esc_html__( 'Cetus Image Converter & AI Alt Text: Error Telemetry', 'cetus-media-optimizer' ) . '</h2>';
 
 		$content .= '<p>' . wp_kses(
 			__(
