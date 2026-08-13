@@ -136,6 +136,14 @@ class Cetus_MO_AI {
 	 * Uses the provider chosen in the settings, falling back to the other one
 	 * automatically on a 429.
 	 *
+	 * An attachment that already has an alt text is left alone. Every provider
+	 * call is billed, and this runs on hooks that fire more than once for the
+	 * same image: wp_generate_attachment_metadata fires twice for a single
+	 * upload, once with context 'create' and again with 'update' once the
+	 * sub-sizes exist. That was already the case for big-image uploads, and from
+	 * WordPress 7.1 it is the norm for every upload made from the editor, where
+	 * the browser generates the sub-sizes and sideloads them.
+	 *
 	 * @param int $attachment_id The WordPress attachment id.
 	 * @return array{success: bool, alt_text: string, provider_used: string, message: string}
 	 */
@@ -146,6 +154,13 @@ class Cetus_MO_AI {
 			'provider_used' => '',
 			'message'       => '',
 		];
+
+		$existing_alt = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
+		if ( '' !== trim( (string) $existing_alt ) ) {
+			$result['alt_text'] = (string) $existing_alt;
+			$result['message']  = 'Alt text già presente: generazione saltata.';
+			return $result;
+		}
 
 		$image_path = get_attached_file( $attachment_id );
 		if ( ! $image_path || ! file_exists( $image_path ) ) {

@@ -30,6 +30,7 @@ $cetus_mo_options = [
 	'cetus_media_alt_text_language',
 	'cetus_media_alt_text_prompt',
 	'cetus_media_cron_enabled',
+	'cetus_media_c2pa_guard',
 	'cetus_media_telemetry_opt_in',
 	'cetus_media_delete_on_uninstall',
 	'cetus_media_version',
@@ -56,6 +57,15 @@ foreach ( $cetus_mo_transients as $cetus_mo_transient ) {
 	delete_transient( $cetus_mo_transient );
 }
 
-// The per-attachment exclusion meta, across every attachment.
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-$wpdb->delete( $wpdb->postmeta, [ 'meta_key' => 'cetus_mo_exclude' ], [ '%s' ] );
+// The per-attachment meta this plugin writes, across every attachment: the
+// exclusion flag, and the two Content Credentials markers.
+$cetus_mo_meta_keys = [
+	'cetus_mo_exclude',
+	'cetus_mo_c2pa_skipped',
+	'cetus_mo_c2pa_stripped',
+];
+
+foreach ( $cetus_mo_meta_keys as $cetus_mo_meta_key ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+	$wpdb->delete( $wpdb->postmeta, [ 'meta_key' => $cetus_mo_meta_key ], [ '%s' ] );
+}

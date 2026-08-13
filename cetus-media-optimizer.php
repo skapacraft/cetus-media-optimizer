@@ -3,7 +3,7 @@
  * Plugin Name:       Cetus Image Converter & AI Alt Text
  * Plugin URI:        https://github.com/skapacraft/cetus-media-optimizer
  * Description:       Advanced media optimizer: converts images to AVIF/WebP, auto-generates Alt Text via AI (Gemini / OpenAI), detects orphan files and manages your media library.
- * Version:           1.0.1
+ * Version:           1.1.1
  * Requires at least: 6.2
  * Requires PHP:      8.0
  * Author:            SkapaCraft
@@ -37,7 +37,7 @@ if ( defined( 'CETUS_MO_VERSION' ) ) {
 /**
  * Plugin constants. Defined once, thanks to the guard above.
  */
-define( 'CETUS_MO_VERSION', '1.0.1' );
+define( 'CETUS_MO_VERSION', '1.1.1' );
 define( 'CETUS_MO_FILE', __FILE__ );
 define( 'CETUS_MO_DIR', trailingslashit( plugin_dir_path( __FILE__ ) ) );
 define( 'CETUS_MO_URL', trailingslashit( plugin_dir_url( __FILE__ ) ) );
@@ -56,6 +56,7 @@ function cetus_mo_load_classes(): void {
 	$files = [
 		'class-migrator.php',
 		'class-cetus-telemetry.php',
+		'class-cetus-c2pa.php',
 		'class-cetus-optimizer.php',
 		'class-cetus-ai.php',
 		'class-bulk-processor.php',
@@ -99,6 +100,7 @@ function cetus_mo_activate(): void {
 		'cetus_media_alt_text_language' => '',
 		'cetus_media_alt_text_prompt'   => '',
 		'cetus_media_cron_enabled'      => '0',
+		'cetus_media_c2pa_guard'        => '1',
 		'cetus_mo_total_bytes_saved'    => '0',
 		'cetus_media_version'           => CETUS_MO_VERSION,
 	];

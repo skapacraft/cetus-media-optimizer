@@ -102,6 +102,7 @@ class Cetus_MO_Admin {
 			'cetus_media_alt_text_language'   => [ $this, 'sanitize_language' ],
 			'cetus_media_alt_text_prompt'     => 'sanitize_textarea_field',
 			'cetus_media_cron_enabled'        => [ $this, 'sanitize_checkbox' ],
+			'cetus_media_c2pa_guard'          => [ $this, 'sanitize_checkbox' ],
 			'cetus_media_telemetry_opt_in'    => [ $this, 'sanitize_checkbox' ],
 			'cetus_media_delete_on_uninstall' => [ $this, 'sanitize_checkbox' ],
 		];
@@ -599,6 +600,55 @@ class Cetus_MO_Admin {
 						<?php echo esc_html( get_option( 'cetus_media_avif_quality', '75' ) ); ?>
 					</span>
 					<p class="description"><?php esc_html_e( 'Higher values = better quality but larger files (default: 75).', 'cetus-media-optimizer' ); ?></p>
+				</td>
+			</tr>
+		</table>
+
+		<h2><?php esc_html_e( 'Content Credentials (C2PA)', 'cetus-media-optimizer' ); ?></h2>
+		<div class="notice notice-info inline">
+			<p><span class="dashicons dashicons-info-outline" style="vertical-align:middle;margin-right:6px;"></span>
+			<?php esc_html_e( 'Some images carry Content Credentials: a signed record of where the image came from and whether AI was involved in making it. Converting an image re-encodes its pixels, and no such record survives that. It cannot be copied across either, because it contains a fingerprint of the original pixels: a copied record would mark the converted file as tampered with, which is worse than having none at all.', 'cetus-media-optimizer' ); ?></p>
+		</div>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Files with Content Credentials', 'cetus-media-optimizer' ); ?></th>
+				<td>
+					<label style="display:block;margin-bottom:8px;">
+						<input type="checkbox" id="cmo_c2pa_guard" name="cetus_media_c2pa_guard" value="1"
+							<?php checked( get_option( 'cetus_media_c2pa_guard', '1' ), '1' ); ?>>
+						<?php esc_html_e( 'Do not convert them (recommended)', 'cetus-media-optimizer' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'On: these files are left as they are, so they keep their credentials and yield no saving. Off: they are converted like any other image and their credentials are lost for good. The original file is never deleted either way.', 'cetus-media-optimizer' ); ?>
+					</p>
+					<?php
+					$c2pa_kept     = class_exists( 'Cetus_MO_C2PA' ) ? Cetus_MO_C2PA::count_flagged( Cetus_MO_C2PA::META_SKIPPED ) : 0;
+					$c2pa_stripped = class_exists( 'Cetus_MO_C2PA' ) ? Cetus_MO_C2PA::count_flagged( Cetus_MO_C2PA::META_STRIPPED ) : 0;
+					?>
+					<?php if ( $c2pa_kept > 0 ) : ?>
+					<p class="description" style="margin-top:8px;">
+						<span class="dashicons dashicons-shield" style="vertical-align:middle;color:#2271b1;"></span>
+						<?php
+						printf(
+							/* translators: %s: number of attachments */
+							esc_html( _n( '%s file left unconverted so far to keep its Content Credentials.', '%s files left unconverted so far to keep their Content Credentials.', $c2pa_kept, 'cetus-media-optimizer' ) ),
+							esc_html( number_format_i18n( $c2pa_kept ) )
+						);
+						?>
+					</p>
+					<?php endif; ?>
+					<?php if ( $c2pa_stripped > 0 ) : ?>
+					<p class="description" style="margin-top:8px;color:#b32d2e;">
+						<span class="dashicons dashicons-warning" style="vertical-align:middle;"></span>
+						<?php
+						printf(
+							/* translators: %s: number of attachments */
+							esc_html( _n( '%s file was converted with Content Credentials present; that record is gone from the converted copy. The original file is still on disk.', '%s files were converted with Content Credentials present; those records are gone from the converted copies. The original files are still on disk.', $c2pa_stripped, 'cetus-media-optimizer' ) ),
+							esc_html( number_format_i18n( $c2pa_stripped ) )
+						);
+						?>
+					</p>
+					<?php endif; ?>
 				</td>
 			</tr>
 		</table>
@@ -1152,6 +1202,7 @@ class Cetus_MO_Admin {
 
 		update_option( 'cetus_media_ai_fallback', isset( $_POST['cetus_media_ai_fallback'] ) ? '1' : '0' );
 		update_option( 'cetus_media_cron_enabled', isset( $_POST['cetus_media_cron_enabled'] ) ? '1' : '0' );
+		update_option( 'cetus_media_c2pa_guard', isset( $_POST['cetus_media_c2pa_guard'] ) ? '1' : '0' );
 		update_option( 'cetus_media_telemetry_opt_in', isset( $_POST['cetus_media_telemetry_opt_in'] ) ? '1' : '0' );
 
 		// Quality, 1 to 100.
@@ -1283,6 +1334,8 @@ class Cetus_MO_Admin {
 	public function render_attachment_exclusion_meta_box( WP_Post $post ): void {
 		$excluded = get_post_meta( $post->ID, 'cetus_mo_exclude', true );
 		wp_nonce_field( 'cetus_mo_meta_' . $post->ID, 'cetus_mo_meta_nonce' );
+
+		$this->render_c2pa_notice( $post );
 		?>
 		<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
 			<input type="checkbox" name="cetus_mo_exclude" value="1" <?php checked( $excluded, '1' ); ?>>
@@ -1291,6 +1344,59 @@ class Cetus_MO_Admin {
 		<p style="font-size:11px;color:#666;margin:8px 0 0;">
 			<?php esc_html_e( 'If checked, this image is skipped both during batch conversion and on upload.', 'cetus-media-optimizer' ); ?>
 		</p>
+		<?php
+	}
+
+	/**
+	 * Warns, inside the attachment meta box, that this file carries Content
+	 * Credentials and what conversion would do to them.
+	 *
+	 * The check reads a few bytes of the file header, so it is cheap enough to
+	 * run while the attachment screen is being drawn.
+	 *
+	 * @param WP_Post $post The current attachment post.
+	 * @return void
+	 */
+	private function render_c2pa_notice( WP_Post $post ): void {
+		if ( ! class_exists( 'Cetus_MO_C2PA' ) ) {
+			return;
+		}
+
+		$file = get_attached_file( $post->ID );
+		if ( ! $file || ! file_exists( $file ) ) {
+			return;
+		}
+
+		// Already converted with the credentials present: say so plainly, rather
+		// than describing what "would" happen.
+		if ( '1' === get_post_meta( $post->ID, Cetus_MO_C2PA::META_STRIPPED, true ) ) {
+			?>
+			<div style="border-left:4px solid #b32d2e;background:#fcf0f1;padding:8px 10px;margin:0 0 12px;">
+				<p style="margin:0;font-size:12px;">
+					<strong><?php esc_html_e( 'Content Credentials lost', 'cetus-media-optimizer' ); ?></strong><br>
+					<?php esc_html_e( 'This image carried Content Credentials and was converted anyway, so the converted copy no longer has them. The original file is untouched on disk.', 'cetus-media-optimizer' ); ?>
+				</p>
+			</div>
+			<?php
+			return;
+		}
+
+		if ( ! Cetus_MO_C2PA::has_manifest( $file ) ) {
+			return;
+		}
+
+		$guarded = Cetus_MO_C2PA::guard_enabled();
+		?>
+		<div style="border-left:4px solid <?php echo $guarded ? '#2271b1' : '#dba617'; ?>;background:<?php echo $guarded ? '#f0f6fc' : '#fcf9e8'; ?>;padding:8px 10px;margin:0 0 12px;">
+			<p style="margin:0;font-size:12px;">
+				<strong><?php esc_html_e( 'This image has Content Credentials', 'cetus-media-optimizer' ); ?></strong><br>
+				<?php if ( $guarded ) : ?>
+					<?php esc_html_e( 'It carries a signed record of its origin. Conversion would destroy that record, so this file is being left unconverted.', 'cetus-media-optimizer' ); ?>
+				<?php else : ?>
+					<?php esc_html_e( 'It carries a signed record of its origin. Converting it will destroy that record permanently, and the setting that would prevent this is turned off.', 'cetus-media-optimizer' ); ?>
+				<?php endif; ?>
+			</p>
+		</div>
 		<?php
 	}
 

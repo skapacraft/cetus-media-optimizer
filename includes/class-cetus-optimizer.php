@@ -101,6 +101,16 @@ class Cetus_MO_Optimizer {
 	 * Callback for 'wp_generate_attachment_metadata'.
 	 * Converts the image that was just uploaded, when auto-convert is on.
 	 *
+	 * WordPress fires this filter twice for one upload whenever sub-size
+	 * generation is deferred: once with context 'create' and again with 'update'
+	 * once the sizes exist. That has long been the case for big-image uploads,
+	 * and from WordPress 7.1 it is the norm for uploads made from the editor,
+	 * where the browser generates the sub-sizes and sideloads them one by one.
+	 * Both passes are meant to run: the first converts the main file, the second
+	 * picks up the sub-sizes that did not exist yet. convert_single() skips a
+	 * conversion it has already done, and the alt text generator refuses to
+	 * spend a second provider call on an image that already has one.
+	 *
 	 * @param array<string, mixed> $metadata      The attachment metadata.
 	 * @param int                  $attachment_id The attachment id.
 	 * @return array<string, mixed>
@@ -173,6 +183,14 @@ class Cetus_MO_Optimizer {
 
 		if ( ! file_exists( $source_path ) ) {
 			$result['message'] = sprintf( 'File not found: %s', esc_html( basename( $source_path ) ) );
+			return $result;
+		}
+
+		// Content Credentials: converting re-encodes the pixels, and no C2PA
+		// manifest survives that. With the guard on the file is left alone.
+		if ( $this->c2pa_guard_stops_conversion( $source_path, $attachment_id ) ) {
+			$result['skipped'] = true;
+			$result['message'] = 'Skipped: the file carries Content Credentials (C2PA), which conversion would destroy.';
 			return $result;
 		}
 
@@ -499,7 +517,11 @@ class Cetus_MO_Optimizer {
 		}
 
 		$result = imagewebp( $image, $dest, $this->get_webp_quality() );
-		imagedestroy( $image ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated
+
+		// There is deliberately no imagedestroy() here. Since PHP 8.0, the
+		// minimum this plugin supports, a GD image is a GdImage object that is
+		// freed when $image goes out of scope: the call has been a no-op ever
+		// since, and PHP 8.5 deprecates it outright.
 
 		if ( ! $result || ! file_exists( $dest ) || (int) filesize( $dest ) === 0 ) {
 			if ( file_exists( $dest ) ) {
@@ -1075,7 +1097,7 @@ class Cetus_MO_Optimizer {
 		foreach ( $meta_rows as $meta_row ) {
 			$meta = maybe_unserialize( $meta_row['meta_value'] ?? '' );
 
-			if ( ! is_array( $meta ) || empty( $meta['sizes'] ) ) {
+			if ( ! is_array( $meta ) ) {
 				continue;
 			}
 
@@ -1091,9 +1113,30 @@ class Cetus_MO_Optimizer {
 			$dir         = $main_relative ? dirname( $main_relative ) : '.';
 			$base_subdir = ( '.' === $dir || '' === $dir ) ? '' : trailingslashit( $dir );
 
-			foreach ( $meta['sizes'] as $size ) {
-				if ( ! empty( $size['file'] ) ) {
-					$paths[] = $base_subdir . $size['file'];
+			if ( ! empty( $meta['sizes'] ) && is_array( $meta['sizes'] ) ) {
+				foreach ( $meta['sizes'] as $size ) {
+					if ( ! empty( $size['file'] ) ) {
+						$paths[] = $base_subdir . $size['file'];
+					}
+				}
+			}
+
+			// Files that sit beside the attachment without being sub-sizes: the
+			// unscaled original of a big-image upload, and the companions
+			// WordPress 7.1 writes when the browser processes an upload, namely
+			// the HEIC an iPhone photo arrived as, the MP4 an animated GIF was
+			// converted into, and that video's poster frame. Core records some of
+			// these as a bare filename and others as an array with a 'file' key,
+			// so both shapes are accepted.
+			foreach ( [ 'original_image', 'source_image', 'animated_video', 'animated_video_poster' ] as $key ) {
+				$companion = $meta[ $key ] ?? null;
+
+				if ( is_array( $companion ) ) {
+					$companion = $companion['file'] ?? '';
+				}
+
+				if ( is_string( $companion ) && '' !== $companion ) {
+					$paths[] = $base_subdir . basename( $companion );
 				}
 			}
 		}
@@ -1401,6 +1444,66 @@ class Cetus_MO_Optimizer {
 	}
 
 	/**
+	 * Decides what to do with a file that carries a C2PA manifest, and records
+	 * the outcome on the attachment so the admin can report it.
+	 *
+	 * A manifest holds a cryptographic hash of the asset, so re-encoding the
+	 * pixels invalidates it and there is no way to carry it across: copying it
+	 * onto the converted file would produce a derivative that reads as tampered
+	 * rather than merely unsigned. The only two honest options are to leave the
+	 * file alone, or to destroy the manifest and say so. That is the choice this
+	 * method applies.
+	 *
+	 * Worth knowing before trying to preserve the manifest some other way: it
+	 * was measured, not assumed, that a plain re-encode drops it on its own. The
+	 * encoders simply do not carry the segment over, so dropping the
+	 * stripImage() call in convert_with_imagick() would not save it either.
+	 * Preserving provenance across a conversion means signing a new manifest on
+	 * the derivative, which needs a signing identity this plugin does not have.
+	 *
+	 * @param string $source_path   Absolute path to the source file.
+	 * @param int    $attachment_id Attachment id, 0 for a file outside the library.
+	 * @return bool True when conversion must not go ahead.
+	 */
+	private function c2pa_guard_stops_conversion( string $source_path, int $attachment_id ): bool {
+		if ( ! class_exists( 'Cetus_MO_C2PA' ) ) {
+			return false;
+		}
+
+		if ( ! Cetus_MO_C2PA::has_manifest( $source_path ) ) {
+			return false;
+		}
+
+		$guard = Cetus_MO_C2PA::guard_enabled();
+		$set   = $guard ? Cetus_MO_C2PA::META_SKIPPED : Cetus_MO_C2PA::META_STRIPPED;
+		$clear = $guard ? Cetus_MO_C2PA::META_STRIPPED : Cetus_MO_C2PA::META_SKIPPED;
+
+		// Log only the first time this file reaches this branch. A bulk run
+		// walks the same library repeatedly, and the log holds 200 entries.
+		$already = false;
+
+		if ( $attachment_id > 0 ) {
+			$already = ( '1' === get_post_meta( $attachment_id, $set, true ) );
+			update_post_meta( $attachment_id, $set, '1' );
+			delete_post_meta( $attachment_id, $clear );
+		}
+
+		if ( ! $already ) {
+			self::add_log_entry(
+				[
+					'attachment_id' => $attachment_id,
+					'filename'      => basename( $source_path ),
+					'format'        => 'C2PA',
+					'bytes_saved'   => 0,
+					'status'        => $guard ? 'skipped (Content Credentials)' : 'converted, Content Credentials lost',
+				]
+			);
+		}
+
+		return $guard;
+	}
+
+	/**
 	 * Adds an entry to the conversion log, newest first, capped at 200.
 	 *
 	 * @param array{attachment_id: int, filename: string, format: string, bytes_saved: int, status: string} $entry The entry data.
@@ -1456,8 +1559,10 @@ class Cetus_MO_Optimizer {
 	 * clears the log and the cumulative savings counter.
 	 *
 	 * It never touches an original JPG, PNG or GIF, and it never touches a WebP
-	 * or AVIF that is itself a registered attachment: those were uploaded as
-	 * such, so they are somebody's originals rather than our output.
+	 * or AVIF that WordPress itself registered: not the file somebody uploaded,
+	 * and not the sub-sizes and companion files core generated from it. Only the
+	 * output of this plugin, which lives next to the originals without ever being
+	 * recorded in the database, is deleted.
 	 *
 	 * @return array{deleted: int, errors: int}
 	 */
@@ -1473,24 +1578,18 @@ class Cetus_MO_Optimizer {
 			return $counts;
 		}
 
-		// Collect the absolute paths of every WebP and AVIF registered as an
-		// attachment in the database, so that none of them is deleted.
-		$original_webp_avif = [];
-		$query              = new WP_Query(
-			[
-				'post_type'      => 'attachment',
-				'post_status'    => 'inherit',
-				'post_mime_type' => [ 'image/webp', 'image/avif' ],
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-			]
-		);
-		foreach ( $query->posts as $id ) {
-			$file = get_attached_file( (int) $id );
-			if ( $file ) {
-				$original_webp_avif[ realpath( $file ) ?: $file ] = true;
-			}
+		// Collect the absolute path of every file WordPress has on record, so that
+		// none of them is deleted. The main file of an attachment is not enough:
+		// a WebP upload also has WebP sub-sizes, and a site that sets
+		// image_editor_output_format gets WebP or AVIF sub-sizes from a JPEG one.
+		// Those are registered in the metadata and belong to WordPress, not to us.
+		$registered = [];
+
+		foreach ( $this->get_all_registered_paths() as $relative ) {
+			$absolute = $base_dir . $relative;
+			$real     = realpath( $absolute );
+
+			$registered[ $real ?: wp_normalize_path( $absolute ) ] = true;
 		}
 
 		$iterator = new RecursiveIteratorIterator(
@@ -1510,8 +1609,8 @@ class Cetus_MO_Optimizer {
 
 			$path = $file_info->getRealPath();
 
-			// Skip the originals registered in the WordPress database.
-			if ( isset( $original_webp_avif[ $path ] ) ) {
+			// Skip everything the WordPress database knows about.
+			if ( isset( $registered[ $path ] ) ) {
 				continue;
 			}
 
