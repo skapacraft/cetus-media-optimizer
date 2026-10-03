@@ -1,5 +1,10 @@
 # Security policy
 
+> **The project is no longer maintained.** Reports are still welcome through
+> the **Security** tab, but there will be no fix and no new release. A
+> confirmed vulnerability will be published as an advisory, so that sites still
+> running the plugin know to remove it.
+
 ## What this plugin is, and why that shapes the threat model
 
 Cetus holds two things that make it worth attacking: **API keys** for Google

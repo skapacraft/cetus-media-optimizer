@@ -4,6 +4,22 @@ All notable changes to **Cetus Image Converter & AI Alt Text** are documented in
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-10-03
+
+The last release. Cetus Image Converter & AI Alt Text is no longer maintained:
+everything keeps working as it does today, but there will be no further
+updates, compatibility fixes or security fixes.
+
+### Added
+
+- End-of-life notice, shown to users who can manage plugins on the Dashboard,
+  the Plugins screen and the plugin's own page. On the first two it can be
+  dismissed for good, per user; on the plugin's own page it stays.
+
+### Removed
+
+- The review request box and the support email link on the plugin's page.
+
 ## [1.1.1] - 2026-08-13
 
 Three fixes, all of them in the paths that touch files or spend money, plus the

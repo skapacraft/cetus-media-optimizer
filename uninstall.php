@@ -11,6 +11,10 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
+// The end-of-life notice dismissal is a UI flag, not user data: it goes with
+// the plugin whatever the data-deletion preference below says.
+delete_metadata( 'user', 0, 'cetus_mo_end_of_life_dismissed', '', true );
+
 if ( '1' !== get_option( 'cetus_media_delete_on_uninstall', '0' ) ) {
 	return;
 }

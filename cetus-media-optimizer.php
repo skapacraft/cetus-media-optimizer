@@ -1,13 +1,12 @@
 <?php
 /**
  * Plugin Name:       Cetus Image Converter & AI Alt Text
- * Plugin URI:        https://github.com/skapacraft/cetus-media-optimizer
+ * Plugin URI:        https://wordpress.org/plugins/cetus-media-optimizer/
  * Description:       Advanced media optimizer: converts images to AVIF/WebP, auto-generates Alt Text via AI (Gemini / OpenAI), detects orphan files and manages your media library.
- * Version:           1.1.1
+ * Version:           1.1.2
  * Requires at least: 6.2
  * Requires PHP:      8.0
  * Author:            SkapaCraft
- * Author URI:        https://skapacraft.com
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       cetus-media-optimizer
@@ -37,7 +36,7 @@ if ( defined( 'CETUS_MO_VERSION' ) ) {
 /**
  * Plugin constants. Defined once, thanks to the guard above.
  */
-define( 'CETUS_MO_VERSION', '1.1.1' );
+define( 'CETUS_MO_VERSION', '1.1.2' );
 define( 'CETUS_MO_FILE', __FILE__ );
 define( 'CETUS_MO_DIR', trailingslashit( plugin_dir_path( __FILE__ ) ) );
 define( 'CETUS_MO_URL', trailingslashit( plugin_dir_url( __FILE__ ) ) );
@@ -62,6 +61,7 @@ function cetus_mo_load_classes(): void {
 		'class-bulk-processor.php',
 		'class-cetus-admin.php',
 		'class-plugin-links.php',
+		'class-end-of-life.php',
 	];
 
 	foreach ( $files as $file ) {
@@ -187,6 +187,11 @@ function cetus_mo_init(): void {
 	// The "Settings" link on the plugin's row in plugins.php.
 	if ( class_exists( 'Cetus_MO_Plugin_Links' ) ) {
 		( new Cetus_MO_Plugin_Links() )->init();
+	}
+
+	// The notice that 1.1.2 is the last release.
+	if ( is_admin() && class_exists( 'Cetus_MO_End_Of_Life' ) ) {
+		( new Cetus_MO_End_Of_Life() )->init();
 	}
 }
 /**

@@ -2,6 +2,12 @@
 
 **Next-Gen WebP & AVIF Conversion with AI-Powered Alt Text**
 
+> **No longer maintained.** 1.1.2 is the last release, and the plugin has been
+> closed on WordPress.org. Sites that have it installed keep working as they do
+> today, but there will be no further updates, compatibility fixes or security
+> fixes. The source stays here, under the same licence, for anyone who wants to
+> carry it on.
+
 Automated image optimization and smart SEO accessibility for WordPress. Convert your entire media library to AVIF or WebP, auto-generate Alt Text via Google Gemini or OpenAI, detect orphan files, and track savings: all from a single native admin panel.
 
 ## Features
@@ -102,9 +108,9 @@ How to report, propose and build is in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Reporting a security problem
 
 Not in a public issue: use the **Security** tab, then **Report a vulnerability**.
-This plugin holds API keys and writes into the media library of somebody else's
-site, so a report stays private until there is a fix. What counts as one here,
-and what does not, is in [SECURITY.md](SECURITY.md).
+The project is no longer maintained, so there will be no fix: a confirmed
+vulnerability is published as an advisory, so that sites still running the
+plugin know to remove it. Details in [SECURITY.md](SECURITY.md).
 
 ## Changelog
 
@@ -112,13 +118,12 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Support
 
-- **WordPress.org forum:** https://wordpress.org/support/plugin/cetus-media-optimizer/
-- **GitHub Issues:** https://github.com/skapacraft/cetus-media-optimizer/issues
-- **Email:** support@skapacraft.com
+None: the project is no longer maintained, and issues and the support forum are
+no longer answered.
 
 ## Author
 
-Developed and maintained by **SkapaCraft** ([skapacraft.com](https://skapacraft.com)).
+Developed by SkapaCraft, now retired.
 
 ## Trademarks
 

@@ -291,10 +291,6 @@ class Cetus_MO_Admin {
 					<a href="https://github.com/skapacraft/cetus-media-optimizer/issues" target="_blank" rel="noopener" style="text-decoration:none;color:#646970;" title="<?php esc_attr_e( 'GitHub Issues', 'cetus-media-optimizer' ); ?>">
 						<?php esc_html_e( 'GitHub', 'cetus-media-optimizer' ); ?>
 					</a>
-					<span style="color:#c3c4c7;margin:0 6px;">·</span>
-					<a href="<?php echo esc_url( 'mailto:support@skapacraft.com?subject=' . rawurlencode( 'Cetus Image Converter & AI Alt Text v' . CETUS_MO_VERSION . ' – Support – ' . ( wp_parse_url( home_url(), PHP_URL_HOST ) ?? '' ) ) ); ?>" style="text-decoration:none;color:#646970;" title="<?php esc_attr_e( 'Email support', 'cetus-media-optimizer' ); ?>">
-						<?php esc_html_e( 'Email', 'cetus-media-optimizer' ); ?>
-					</a>
 				</span>
 			</h1>
 
@@ -333,7 +329,6 @@ class Cetus_MO_Admin {
 				<?php endif; ?>
 			</div>
 
-			<?php $this->render_review_box(); ?>
 		</div>
 		<?php
 	}
@@ -1529,43 +1524,6 @@ class Cetus_MO_Admin {
 			return number_format( $bytes / 1024, 1 ) . ' KB';
 		}
 		return $bytes . ' B';
-	}
-
-	// -------------------------------------------------------------------------
-	// Box recensione
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Renders the box asking for a review on WordPress.org.
-	 * Uses the native WordPress `.card` class, so it sits in the admin UI rather
-	 * than on top of it.
-	 *
-	 * @return void
-	 */
-	private function render_review_box(): void {
-		$review_url = 'https://wordpress.org/support/plugin/cetus-media-optimizer/reviews/#new-post';
-		?>
-		<div class="card cmo-review-card" style="max-width:760px;margin-top:24px;padding:20px 24px;box-sizing:border-box;">
-			<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
-				<div style="font-size:32px;line-height:1;flex-shrink:0;" aria-hidden="true">⭐</div>
-				<div style="flex:1;min-width:200px;">
-					<h3 style="margin:0 0 8px;">
-						<?php esc_html_e( 'Do you like Cetus Image Converter & AI Alt Text?', 'cetus-media-optimizer' ); ?>
-					</h3>
-					<p style="margin:0 0 14px;color:#50575e;font-size:13px;">
-						<?php esc_html_e( 'Cetus Image Converter & AI Alt Text is 100% free and open source. If it is optimizing your media library and improving your Core Web Vitals scores, support SkapaCraft\'s development by leaving a 5-star review on WordPress.org.', 'cetus-media-optimizer' ); ?>
-					</p>
-					<a href="<?php echo esc_url( $review_url ); ?>"
-						class="button button-primary"
-						target="_blank"
-						rel="noopener noreferrer">
-						<span class="dashicons dashicons-star-filled" style="font-size:14px;width:14px;height:14px;vertical-align:middle;margin-right:4px;"></span>
-						<?php esc_html_e( 'Leave a 5-star review', 'cetus-media-optimizer' ); ?>
-					</a>
-				</div>
-			</div>
-		</div>
-		<?php
 	}
 
 	// -------------------------------------------------------------------------

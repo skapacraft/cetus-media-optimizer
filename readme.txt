@@ -3,7 +3,7 @@ Contributors:      danielegagliardi
 Tags:              webp, avif, image optimization, alt text, ai
 Requires at least: 6.2
 Tested up to:      7.1
-Stable tag:        1.1.1
+Stable tag:        1.1.2
 Requires PHP:      8.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -11,6 +11,8 @@ License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 Advanced image optimizer: convert to AVIF/WebP, auto-generate Alt Text via AI, detect orphan files, and manage your entire media library.
 
 == Description ==
+
+**No longer maintained.** 1.1.2 is the last release: the plugin keeps working as it does today, but it will receive no further updates, compatibility fixes or security fixes. Plan a replacement.
 
 **Cetus Image Converter & AI Alt Text** turns your WordPress media library into a lean, modern, and accessible asset store.
 
@@ -123,6 +125,11 @@ No, by default. The opt-in checkbox is disabled by default. If you enable it, an
 5. **Library Management**: Statistics cards (total images, to convert, disk usage by format, cumulative savings), orphan file scanner and conversion log.
 
 == Changelog ==
+
+= 1.1.2 =
+* This is the last release. Cetus Image Converter & AI Alt Text is no longer maintained.
+* Added: an admin notice saying so, shown to users who can manage plugins on the Dashboard, the Plugins screen and the plugin's own page. On the first two it can be dismissed for good, per user.
+* Removed: the review request box and the support email link from the plugin's page.
 
 = 1.1.1 =
 * Fixed: "Reset files" deleted the WebP and AVIF sub-sizes WordPress had generated itself. Only the main file of each attachment was protected, so a WebP upload kept its original while its sub-sizes were removed, leaving the media library and every srcset pointing at files that no longer existed.
